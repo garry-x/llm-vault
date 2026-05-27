@@ -309,7 +309,7 @@
     <div class="frame">
       <div class="eyebrow">Tokenizer Research Brief / 2026.05</div>
       <h1>头部模型的中英文编码效率</h1>
-      <p class="lede">同一篇双语短篇，在不同模型 tokenizer 中会占用多少上下文？本页梳理 18 个模型入口的公开资源边界，并用 10 个已实际运行的 tokenizer 比较中文与英文压缩效率。</p>
+      <p class="lede">同一篇双语短篇，在不同模型 tokenizer 中会占用多少上下文？本页梳理 19 个默认入口的最新官方路径，并用 14 个已实际运行的公开 tokenizer 或明确标记的公开基线比较中文与英文压缩效率。</p>
       <div class="stamp">
         <span class="pill">基于《港口的钟》双语文本</span>
         <span class="pill">压缩率单位 chars/token</span>
@@ -334,10 +334,10 @@
   <main class="frame">
     <section id="overview">
       <div class="kpis">
-        <article class="kpi"><span>纳入模型入口</span><strong>18</strong><span>公开资源 / API 路径已梳理</span></article>
-        <article class="kpi"><span>实际本地验证</span><strong>10</strong><span>可生成真实 token 切片</span></article>
-        <article class="kpi"><span>中文最少 tokens</span><strong>256</strong><span>DeepSeek V3.2 / V4 Pro</span></article>
-        <article class="kpi"><span>中文最大降幅</span><strong>31.9%</strong><span>DeepSeek 对比 Mistral</span></article>
+        <article class="kpi"><span>默认模型入口</span><strong>19</strong><span>当前模型及公开基线</span></article>
+        <article class="kpi"><span>实际本地验证</span><strong>14</strong><span>可生成真实 token 切片</span></article>
+        <article class="kpi"><span>中文最少 tokens</span><strong>233</strong><span>Kimi K2.6</span></article>
+        <article class="kpi"><span>中文最大降幅</span><strong>38.0%</strong><span>Kimi 对比 Mistral / Nemotron</span></article>
       </div>
     </section>
 
@@ -355,10 +355,10 @@
       <article class="panel">
         <h2>先看结论</h2>
         <ul class="insights">
-          <li><span class="badge best">中文</span>DeepSeek V3.2 与 V4 Pro 并列第一，Seed、GLM 紧随其后，均达到 <strong>1.45 chars/token</strong> 以上。</li>
-          <li><span class="badge best">英文</span>10 个 tokenizer 集中在 224–245 tokens，分化远小于中文。</li>
-          <li><span class="badge warn">注意</span>词表越大不必然中文越省 token：Cohere 约 255k 词表仍弱于 DeepSeek 约 128k。</li>
-          <li><span class="badge api">边界</span>Claude 与 Gemini 只有官方 API 计数路径，不能用第三方切片替代线上真实 tokenizer。</li>
+          <li><span class="badge best">中文</span>Kimi K2.6 为 <strong>1.64 chars/token</strong>，MiniMax M2.7 为 <strong>1.57</strong>，领先本次公开验证集合。</li>
+          <li><span class="badge best">英文</span>14 个本地结果集中在 224–245 tokens，分化远小于中文。</li>
+          <li><span class="badge warn">更新</span>Qwen3.6 的中文结果为 256 tokens，相比此前 Qwen3 8B 代表的 268 明显变化。</li>
+          <li><span class="badge api">边界</span>GPT-5.5、Claude Opus 4.7、Gemini 3.1 走官方 API；公开本地基线不得冒充最新服务模型。</li>
         </ul>
       </article>
     </section>
@@ -370,13 +370,13 @@
           <h3>中文压缩率</h3>
           <p class="chart-note">chars/token，越高越好；按压缩率排序</p>
           <div id="zh-bars"></div>
-          <p class="delta">DeepSeek V3.2 与 V4 Pro 处理本样本均仅需 <strong>256</strong> tokens，相比 Mistral 的 <strong>376</strong> tokens 少 120 个。</p>
+          <p class="delta">Kimi K2.6 处理本样本仅需 <strong>233</strong> tokens，相比 Mistral Medium 3.5 与 Nemotron 3 Super 的 <strong>376</strong> tokens 少 143 个。</p>
         </article>
         <article class="panel">
           <h3>英文压缩率</h3>
           <p class="chart-note">chars/token，越高越好；英文差距相对收敛</p>
           <div id="en-bars"></div>
-          <p class="delta">Grok 与 Cohere 并列第一（<strong>4.86</strong>），最末的 ERNIE 仍为 <strong>4.44</strong>，差距不足中文分化幅度。</p>
+          <p class="delta">Grok-2 公开基线与 Cohere 并列第一（<strong>4.86</strong>），最末的 ERNIE 为 <strong>4.44</strong>，差距不足中文分化幅度。</p>
         </article>
       </div>
     </section>
@@ -409,41 +409,41 @@
     </section>
 
     <section id="coverage">
-      <h2>18 个模型入口的可复现路径</h2>
+      <h2>最新模型与公开基线的复现路径</h2>
       <div class="coverage">
         <article class="coverage-card">
           <h3>本地 tokenizer / 可展示切片</h3>
           <p>厂商公开 tokenizer 文件或官方指向的读取实现，可下载后本地精确编码。部分尚需仓库许可。</p>
           <div class="tags">
-            <span class="tag">OpenAI</span><span class="tag">DeepSeek V3.2</span><span class="tag">DeepSeek V4 Pro</span><span class="tag">Qwen</span>
-            <span class="tag">Mistral</span><span class="tag">GLM</span><span class="tag">ERNIE</span>
-            <span class="tag">Seed</span><span class="tag">Grok</span><span class="tag">Cohere</span>
-            <span class="tag">Llama*</span><span class="tag">Gemma*</span>
+            <span class="tag">Kimi K2.6</span><span class="tag">DeepSeek V4 Pro</span><span class="tag">Qwen3.6</span>
+            <span class="tag">Mistral Medium 3.5</span><span class="tag">Gemma 4</span><span class="tag">GLM-5.1</span>
+            <span class="tag">ERNIE 4.5</span><span class="tag">Seed OSS</span><span class="tag">Hy3-preview</span>
+            <span class="tag">MiniMax M2.7</span><span class="tag">Cohere</span><span class="tag">Nemotron Super</span><span class="tag">Llama 4*</span>
           </div>
         </article>
         <article class="coverage-card api-card">
-          <h3>官方 API 计数</h3>
-          <p>精确统计线上模型输入 token，但不提供逐 token 切片。</p>
-          <div class="tags"><span class="tag">Anthropic Claude</span><span class="tag">Google Gemini</span></div>
+          <h3>当前线上模型 API</h3>
+          <p>固定最新模型 id；GPT、Claude、Gemini 返回计数，Grok API 可返回切片。</p>
+          <div class="tags"><span class="tag">GPT-5.5</span><span class="tag">Claude Opus 4.7</span><span class="tag">Gemini 3.1 Pro</span><span class="tag">Grok 4.3</span></div>
         </article>
         <article class="coverage-card guard-card">
-          <h3>显式信任代码后加载</h3>
-          <p>仓库路径涉及自定义 tokenizer 代码，本程序默认不执行。</p>
-          <div class="tags"><span class="tag">Kimi</span><span class="tag">Hunyuan</span><span class="tag">MiniMax</span><span class="tag">Nemotron</span></div>
+          <h3>公开对照入口</h3>
+          <p>用于离线展示和历史比较，不代表当前托管旗舰模型的 tokenizer。</p>
+          <div class="tags"><span class="tag">OpenAI o200k_base</span><span class="tag">xAI Grok-2</span><span class="tag">DeepSeek V3.2</span></div>
         </article>
       </div>
-      <p class="chart-note" style="margin-top:12px">* Llama 与 Gemma 仓库可能需要登录并接受模型许可。</p>
+      <p class="chart-note" style="margin-top:12px">* Llama 4 Maverick 仓库需要登录并接受模型许可；因此未进入已验证数据表。</p>
     </section>
 
     <section id="interpretation">
       <h2>模型家族解读</h2>
       <div class="families">
-        <article class="family"><h3>OpenAI</h3><p><code>tiktoken</code> 为官方开源实现；GPT-4o 的 <code>o200k_base</code> 可本地查看 id 与字节片段。</p></article>
-        <article class="family"><h3>Claude / Gemini</h3><p>当前精确路径是官方计数 API。它们与本地纯文本编码的口径不同，不应假设可视化切片。</p></article>
-        <article class="family"><h3>中文公开模型</h3><p>DeepSeek、Qwen、GLM、ERNIE、Seed 均发布 tokenizer 资源。本样本中 DeepSeek V3.2 与 V4 Pro 的 token id 序列相同，但 V4 Pro 词表多 465 个条目。</p></article>
-        <article class="family"><h3>Mistral</h3><p>官方维护 <code>mistral-common</code>；本例对所选仓库启用了 Transformers 提示的 regex 修正。</p></article>
-        <article class="family"><h3>xAI Grok</h3><p>官方发布 <code>tokenizer.tok.json</code>，为 tiktoken 格式；本程序复现 SGLang 公开解析路径。</p></article>
-        <article class="family"><h3>授权与信任边界</h3><p>执行 remote code 或接受模型许可，是获取 tokenizer 的边界，不代表相应模型缺少 tokenizer。</p></article>
+        <article class="family"><h3>OpenAI</h3><p>GPT-5.5 通过官方 <code>responses/input_tokens</code> 精确计数；<code>o200k_base</code> 只作为公开本地切片基线。</p></article>
+        <article class="family"><h3>Claude / Gemini</h3><p>当前精确路径是官方计数 API。它们与本地纯文本编码的口径不同，不假设存在可下载切片。</p></article>
+        <article class="family"><h3>中文公开模型</h3><p>Kimi K2.6、DeepSeek V4 Pro、Qwen3.6、Hy3、MiniMax M2.7 等均有官方 tokenizer 工件；本样本由 Kimi 领先。</p></article>
+        <article class="family"><h3>Mistral / NVIDIA</h3><p>已升级到 Mistral Medium 3.5 与 Nemotron 3 Super；两者在本中文样本均为 376 tokens。</p></article>
+        <article class="family"><h3>xAI Grok</h3><p>Grok 4.3 的官方 <code>/v1/tokenize-text</code> 可返回切片；Grok-2 下载工件仅作为无需密钥的基线。</p></article>
+        <article class="family"><h3>获取边界</h3><p>Llama 4 需要仓库许可；其他已验证新版本均直接读取公开文件，无需执行远程 tokenizer 代码。</p></article>
       </div>
     </section>
 
@@ -454,19 +454,22 @@
     <section id="sources" class="panel">
       <h2>主要来源与复现入口</h2>
       <ul class="sources">
-        <li><a href="https://github.com/openai/tiktoken">OpenAI / tiktoken</a></li>
-        <li><a href="https://docs.anthropic.com/en/docs/build-with-claude/token-counting">Anthropic / token counting</a></li>
-        <li><a href="https://ai.google.dev/gemini-api/docs/tokens">Google Gemini / countTokens</a></li>
-        <li><a href="https://huggingface.co/deepseek-ai/DeepSeek-V3.2">DeepSeek V3.2</a></li>
+        <li><a href="https://developers.openai.com/api/docs/models/gpt-5.5/">OpenAI GPT-5.5</a></li>
+        <li><a href="https://platform.claude.com/docs/en/models-overview">Anthropic models</a></li>
+        <li><a href="https://ai.google.dev/gemini-api/docs/models">Google Gemini models</a></li>
+        <li><a href="https://docs.x.ai/developers/models">xAI models</a></li>
+        <li><a href="https://huggingface.co/moonshotai/Kimi-K2.6">Kimi K2.6</a></li>
         <li><a href="https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro">DeepSeek V4 Pro</a></li>
-        <li><a href="https://huggingface.co/Qwen/Qwen3-8B">Qwen3 8B</a></li>
-        <li><a href="https://huggingface.co/zai-org/GLM-4.5">GLM-4.5</a></li>
+        <li><a href="https://huggingface.co/Qwen/Qwen3.6-27B">Qwen3.6 27B</a></li>
+        <li><a href="https://huggingface.co/zai-org/GLM-5.1">GLM-5.1</a></li>
         <li><a href="https://huggingface.co/ByteDance-Seed/Seed-OSS-36B-Instruct">Seed OSS</a></li>
-        <li><a href="https://github.com/mistralai/mistral-common">Mistral / mistral-common</a></li>
-        <li><a href="https://huggingface.co/xai-org/grok-2">xAI Grok-2</a></li>
-        <li><a href="https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/tokenizer/tiktoken_tokenizer.py">SGLang / Grok loader</a></li>
+        <li><a href="https://huggingface.co/mistralai/Mistral-Medium-3.5-128B">Mistral Medium 3.5</a></li>
+        <li><a href="https://huggingface.co/google/gemma-4-31B-it">Gemma 4</a></li>
         <li><a href="https://huggingface.co/baidu/ERNIE-4.5-21B-A3B-PT">ERNIE 4.5</a></li>
+        <li><a href="https://huggingface.co/tencent/Hy3-preview">Hy3-preview</a></li>
+        <li><a href="https://huggingface.co/MiniMaxAI/MiniMax-M2.7">MiniMax M2.7</a></li>
         <li><a href="https://huggingface.co/CohereLabs/command-a-plus-05-2026-bf16">Cohere Command A+</a></li>
+        <li><a href="https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16">Nemotron 3 Super</a></li>
       </ul>
     </section>
   </main>
@@ -474,22 +477,26 @@
   <footer>
     <div class="frame">
       基于 <a href="TOKENIZER_ANALYSIS.md">TOKENIZER_ANALYSIS.md</a> 制作 · 查看逐 token 彩色切片报告：
-      <a href="reports/verified.html">reports/verified.html</a>
+      <a href="reports/latest-verified.html">reports/latest-verified.html</a>
     </div>
   </footer>
 
   <script>
     const models = [
-      {name:"OpenAI GPT-4o", mechanism:"tiktoken / o200k_base", vocab:200019, enTokens:226, enRatio:4.82, zhTokens:324, zhRatio:1.18},
-      {name:"Qwen3 8B", mechanism:"HF Fast / BPE", vocab:151669, enTokens:226, enRatio:4.82, zhTokens:268, zhRatio:1.42},
-      {name:"xAI Grok-2", mechanism:"tiktoken 工件", vocab:131072, enTokens:224, enRatio:4.86, zhTokens:291, zhRatio:1.31},
-      {name:"DeepSeek V3.2", mechanism:"tokenizer.json / BPE", vocab:128815, enTokens:226, enRatio:4.82, zhTokens:256, zhRatio:1.49},
+      {name:"OpenAI o200k_base（公开基线）", mechanism:"tiktoken", vocab:200019, enTokens:226, enRatio:4.82, zhTokens:324, zhRatio:1.18},
+      {name:"Moonshot Kimi K2.6", mechanism:"tiktoken.model", vocab:163840, enTokens:227, enRatio:4.80, zhTokens:233, zhRatio:1.64},
       {name:"DeepSeek V4 Pro", mechanism:"tokenizer.json / BPE", vocab:129280, enTokens:226, enRatio:4.82, zhTokens:256, zhRatio:1.49},
-      {name:"Z.ai GLM-4.5", mechanism:"HF Fast / BPE", vocab:151365, enTokens:226, enRatio:4.82, zhTokens:263, zhRatio:1.45},
-      {name:"ByteDance Seed OSS", mechanism:"HF Fast / BPE", vocab:155121, enTokens:231, enRatio:4.71, zhTokens:260, zhRatio:1.47},
-      {name:"Mistral Small 3.1", mechanism:"HF Fast / BPE + regex fix", vocab:131072, enTokens:229, enRatio:4.76, zhTokens:376, zhRatio:1.01},
-      {name:"Baidu ERNIE 4.5", mechanism:"HF tokenizer / BPE", vocab:101304, enTokens:245, enRatio:4.44, zhTokens:273, zhRatio:1.40},
-      {name:"Cohere Command A+", mechanism:"HF Fast / BPE", vocab:255032, enTokens:224, enRatio:4.86, zhTokens:282, zhRatio:1.35}
+      {name:"Alibaba Qwen3.6 27B", mechanism:"tokenizer.json / BPE", vocab:248070, enTokens:230, enRatio:4.73, zhTokens:256, zhRatio:1.49},
+      {name:"Google Gemma 4 31B IT", mechanism:"tokenizer.json", vocab:262144, enTokens:231, enRatio:4.71, zhTokens:294, zhRatio:1.30},
+      {name:"Mistral Medium 3.5", mechanism:"tokenizer.json", vocab:131072, enTokens:229, enRatio:4.76, zhTokens:376, zhRatio:1.01},
+      {name:"Z.ai GLM-5.1", mechanism:"tokenizer.json / BPE", vocab:154856, enTokens:226, enRatio:4.82, zhTokens:263, zhRatio:1.45},
+      {name:"Baidu ERNIE 4.5", mechanism:"tokenizer.json / BPE", vocab:101304, enTokens:245, enRatio:4.44, zhTokens:273, zhRatio:1.40},
+      {name:"ByteDance Seed OSS", mechanism:"tokenizer.json / BPE", vocab:155121, enTokens:231, enRatio:4.71, zhTokens:260, zhRatio:1.47},
+      {name:"Tencent Hy3-preview", mechanism:"tokenizer.json", vocab:120818, enTokens:232, enRatio:4.69, zhTokens:257, zhRatio:1.48},
+      {name:"MiniMax M2.7", mechanism:"tokenizer.json", vocab:200054, enTokens:225, enRatio:4.84, zhTokens:243, zhRatio:1.57},
+      {name:"xAI Grok-2（公开基线）", mechanism:"tiktoken 工件", vocab:131072, enTokens:224, enRatio:4.86, zhTokens:291, zhRatio:1.31},
+      {name:"Cohere Command A+", mechanism:"tokenizer.json / BPE", vocab:255032, enTokens:224, enRatio:4.86, zhTokens:282, zhRatio:1.35},
+      {name:"NVIDIA Nemotron 3 Super", mechanism:"tokenizer.json", vocab:131072, enTokens:229, enRatio:4.76, zhTokens:376, zhRatio:1.01}
     ];
     const escapeText = value => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
     function bars(id, key, className) {
@@ -506,7 +513,7 @@
       const lowerFirst = sort === "zhTokens";
       const ordered = [...models].sort((a, b) => lowerFirst ? a[sort] - b[sort] : b[sort] - a[sort]);
       document.getElementById("model-table").innerHTML = ordered.map(model => `
-        <tr class="${model.name.startsWith("DeepSeek") ? "highlight" : ""}">
+        <tr class="${model.name.startsWith("Moonshot") ? "highlight" : ""}">
           <td>${escapeText(model.name)}</td>
           <td>${escapeText(model.mechanism)}</td>
           <td class="num">${model.vocab.toLocaleString("zh-CN")}</td>

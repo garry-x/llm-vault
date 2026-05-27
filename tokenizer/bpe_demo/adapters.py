@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from urllib import request
 
 from bpe_demo.core import TokenPiece, TokenizationResult
 
@@ -18,8 +18,8 @@ def _byte_piece(value: bytes) -> str:
         return "".join(chr(byte) if 32 <= byte < 127 else f"\\x{byte:02x}" for byte in value)
 
 
-class OpenAIAdapter:
-    name = "OpenAI GPT-4o"
+class OpenAILocalAdapter:
+    name = "OpenAI o200k_base (公开本地基线)"
     source = "tiktoken:o200k_base"
 
     def __init__(self) -> None:
@@ -38,47 +38,34 @@ class OpenAIAdapter:
         return TokenizationResult(self.name, self.source, language, text, len(ids), pieces)
 
 
-@dataclass(frozen=True)
-class HuggingFaceSpec:
-    name: str
-    repository: str
-    requires_remote_code: bool = False
-    fix_mistral_regex: bool = False
+class OpenAIAPIAdapter:
+    source = "api:responses.input_tokens"
 
-
-class HuggingFaceAdapter:
-    def __init__(self, spec: HuggingFaceSpec, trust_remote_code: bool = False) -> None:
-        self.name = spec.name
-        self.source = f"huggingface:{spec.repository}"
-        if spec.requires_remote_code and not trust_remote_code:
-            raise AdapterUnavailable(
-                f"{spec.name} 的官方 tokenizer 包含自定义代码；使用 --trust-remote-code 显式允许加载"
-            )
-        try:
-            from transformers import AutoTokenizer
-        except ImportError as exc:
-            raise AdapterUnavailable("安装依赖后可加载 Hugging Face tokenizers: pip install -e .") from exc
-        try:
-            options = {"fix_mistral_regex": True} if spec.fix_mistral_regex else {}
-            self._tokenizer = AutoTokenizer.from_pretrained(
-                spec.repository,
-                trust_remote_code=spec.requires_remote_code and trust_remote_code,
-                **options,
-            )
-        except Exception as exc:
-            raise AdapterUnavailable(f"无法加载 {spec.repository}: {exc}") from exc
+    def __init__(self, model: str) -> None:
+        self.model = model
+        self.name = f"OpenAI ({model})"
+        self._api_key = os.environ.get("OPENAI_API_KEY")
+        if not self._api_key:
+            raise AdapterUnavailable("设置 OPENAI_API_KEY 后可调用 OpenAI 官方 input_tokens 接口")
 
     def tokenize(self, text: str, language: str) -> TokenizationResult:
-        ids = self._tokenizer.encode(text, add_special_tokens=False)
-        pieces = []
-        for token_id in ids:
-            decoded = self._tokenizer.decode(
-                [token_id], skip_special_tokens=False, clean_up_tokenization_spaces=False
-            )
-            if "\ufffd" in decoded:
-                decoded = self._tokenizer.convert_ids_to_tokens(token_id)
-            pieces.append(TokenPiece(token_id=token_id, text=decoded))
-        return TokenizationResult(self.name, self.source, language, text, len(ids), pieces)
+        body = json.dumps({"model": self.model, "input": text}).encode("utf-8")
+        http_request = request.Request(
+            "https://api.openai.com/v1/responses/input_tokens",
+            data=body,
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with request.urlopen(http_request, timeout=60) as response:
+                count = json.load(response)["input_tokens"]
+        except Exception as exc:
+            raise AdapterUnavailable(f"OpenAI input_tokens 请求失败: {exc}") from exc
+        note = "官方 API 仅返回该模型输入 token 总数，不公开逐 token 切片。"
+        return TokenizationResult(self.name, self.source, language, text, count, None, note)
 
 
 class AnthropicAdapter:
@@ -149,8 +136,61 @@ class TokenizersJsonAdapter:
         return TokenizationResult(self.name, self.source, language, text, len(encoding.ids), pieces)
 
 
-class GrokAdapter:
-    name = "xAI Grok-2"
+class KimiAdapter:
+    name = "Moonshot Kimi K2.6"
+    source = "huggingface:moonshotai/Kimi-K2.6/tiktoken.model"
+    repository = "moonshotai/Kimi-K2.6"
+    pattern = "|".join(
+        [
+            r"[\p{Han}]+",
+            r"[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}&&[^\p{Han}]]*[\p{Ll}\p{Lm}\p{Lo}\p{M}&&[^\p{Han}]]+(?i:'s|'t|'re|'ve|'m|'ll|'d)?",
+            r"[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}&&[^\p{Han}]]+[\p{Ll}\p{Lm}\p{Lo}\p{M}&&[^\p{Han}]]*(?i:'s|'t|'re|'ve|'m|'ll|'d)?",
+            r"\p{N}{1,3}",
+            r" ?[^\s\p{L}\p{N}]+[\r\n]*",
+            r"\s*[\r\n]+",
+            r"\s+(?!\S)",
+            r"\s+",
+        ]
+    )
+
+    def __init__(self) -> None:
+        try:
+            from huggingface_hub import hf_hub_download
+            import tiktoken
+            from tiktoken.load import load_tiktoken_bpe
+        except ImportError as exc:
+            raise AdapterUnavailable("安装依赖后可加载 Kimi tiktoken 工件: pip install -e .") from exc
+        try:
+            model_path = hf_hub_download(repo_id=self.repository, filename="tiktoken.model")
+            config_path = hf_hub_download(repo_id=self.repository, filename="tokenizer_config.json")
+            with open(config_path, encoding="utf-8") as handle:
+                decoder = json.load(handle).get("added_tokens_decoder", {})
+            mergeable_ranks = load_tiktoken_bpe(model_path)
+            base = len(mergeable_ranks)
+            special_tokens = {
+                decoder.get(str(token_id), {}).get("content", f"<|reserved_token_{token_id}|>"): token_id
+                for token_id in range(base, base + 256)
+            }
+            self._encoding = tiktoken.Encoding(
+                name="kimi-k2.6",
+                pat_str=self.pattern,
+                mergeable_ranks=mergeable_ranks,
+                special_tokens=special_tokens,
+            )
+        except Exception as exc:
+            raise AdapterUnavailable(f"无法解析 {self.repository}/tiktoken.model: {exc}") from exc
+
+    def tokenize(self, text: str, language: str) -> TokenizationResult:
+        ids = self._encoding.encode(text, allowed_special="all")
+        pieces = [
+            TokenPiece(token_id=token_id, text=_byte_piece(self._encoding.decode_single_token_bytes(token_id)))
+            for token_id in ids
+        ]
+        return TokenizationResult(self.name, self.source, language, text, len(ids), pieces)
+
+
+class GrokPublicAdapter:
+    name = "xAI Grok-2 (最新公开 tokenizer 工件)"
     source = "huggingface:xai-org/grok-2/tokenizer.tok.json"
 
     def __init__(self) -> None:
@@ -190,37 +230,76 @@ class GrokAdapter:
         return TokenizationResult(self.name, self.source, language, text, len(ids), pieces)
 
 
-HF_SPECS = {
-    "kimi": HuggingFaceSpec("Kimi K2 Instruct", "moonshotai/Kimi-K2-Instruct", True),
-    "qwen": HuggingFaceSpec("Qwen3 8B", "Qwen/Qwen3-8B"),
-    "llama": HuggingFaceSpec("Meta Llama 3.3", "meta-llama/Llama-3.3-70B-Instruct"),
-    "mistral": HuggingFaceSpec(
-        "Mistral Small 3.1", "mistralai/Mistral-Small-3.1-24B-Instruct-2503", fix_mistral_regex=True
-    ),
-    "gemma": HuggingFaceSpec("Google Gemma 3", "google/gemma-3-12b-it"),
-    "glm": HuggingFaceSpec("Z.ai GLM-4.5", "zai-org/GLM-4.5"),
-    "ernie": HuggingFaceSpec("Baidu ERNIE 4.5", "baidu/ERNIE-4.5-21B-A3B-PT"),
-    "seed": HuggingFaceSpec("ByteDance Seed OSS", "ByteDance-Seed/Seed-OSS-36B-Instruct"),
-    "hunyuan": HuggingFaceSpec("Tencent Hunyuan A13B", "tencent/Hunyuan-A13B-Instruct", True),
-    "minimax": HuggingFaceSpec("MiniMax M1", "MiniMaxAI/MiniMax-M1-80k-hf", True),
-    "cohere": HuggingFaceSpec("Cohere Command A+", "CohereLabs/command-a-plus-05-2026-bf16"),
-    "nemotron": HuggingFaceSpec(
-        "NVIDIA Nemotron 3 Nano", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16", True
-    ),
+class GrokAPIAdapter:
+    source = "api:/v1/tokenize-text"
+
+    def __init__(self, model: str) -> None:
+        self.model = model
+        self.name = f"xAI Grok ({model})"
+        self._api_key = os.environ.get("XAI_API_KEY")
+        if not self._api_key:
+            raise AdapterUnavailable("设置 XAI_API_KEY 后可调用 xAI 官方 tokenize-text 接口")
+
+    def tokenize(self, text: str, language: str) -> TokenizationResult:
+        body = json.dumps({"model": self.model, "text": text}).encode("utf-8")
+        http_request = request.Request(
+            "https://api.x.ai/v1/tokenize-text",
+            data=body,
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with request.urlopen(http_request, timeout=60) as response:
+                tokens = json.load(response)["token_ids"]
+        except Exception as exc:
+            raise AdapterUnavailable(f"xAI tokenize-text 请求失败: {exc}") from exc
+        pieces = [TokenPiece(token_id=token["token_id"], text=token["string_token"]) for token in tokens]
+        return TokenizationResult(self.name, self.source, language, text, len(pieces), pieces)
+
+
+JSON_SPECS = {
+    "qwen": ("Alibaba Qwen3.6 27B", "Qwen/Qwen3.6-27B"),
+    "llama": ("Meta Llama 4 Maverick", "meta-llama/Llama-4-Maverick-17B-128E-Instruct"),
+    "mistral": ("Mistral Medium 3.5", "mistralai/Mistral-Medium-3.5-128B"),
+    "gemma": ("Google Gemma 4 31B IT", "google/gemma-4-31B-it"),
+    "glm": ("Z.ai GLM-5.1", "zai-org/GLM-5.1"),
+    "ernie": ("Baidu ERNIE 4.5", "baidu/ERNIE-4.5-21B-A3B-PT"),
+    "seed": ("ByteDance Seed OSS", "ByteDance-Seed/Seed-OSS-36B-Instruct"),
+    "hunyuan": ("Tencent Hy3-preview", "tencent/Hy3-preview"),
+    "minimax": ("MiniMax M2.7", "MiniMaxAI/MiniMax-M2.7"),
+    "cohere": ("Cohere Command A+", "CohereLabs/command-a-plus-05-2026-bf16"),
+    "nemotron": ("NVIDIA Nemotron 3 Super", "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16"),
 }
 
 
-def build_adapter(key: str, trust_remote_code: bool, anthropic_model: str, gemini_model: str):
+def build_adapter(
+    key: str,
+    trust_remote_code: bool,
+    openai_model: str,
+    anthropic_model: str,
+    gemini_model: str,
+    grok_model: str,
+):
     if key == "openai":
-        return OpenAIAdapter()
+        return OpenAIAPIAdapter(openai_model)
+    if key == "openai-o200k":
+        return OpenAILocalAdapter()
     if key == "anthropic":
         return AnthropicAdapter(anthropic_model)
     if key == "gemini":
         return GeminiAdapter(gemini_model)
-    if key == "deepseek":
-        return TokenizersJsonAdapter("DeepSeek V3.2", "deepseek-ai/DeepSeek-V3.2")
-    if key == "deepseek-v4-pro":
+    if key in {"deepseek", "deepseek-v4-pro"}:
         return TokenizersJsonAdapter("DeepSeek V4 Pro", "deepseek-ai/DeepSeek-V4-Pro")
+    if key == "deepseek-v3.2":
+        return TokenizersJsonAdapter("DeepSeek V3.2 (历史对照)", "deepseek-ai/DeepSeek-V3.2")
+    if key == "kimi":
+        return KimiAdapter()
     if key == "grok":
-        return GrokAdapter()
-    return HuggingFaceAdapter(HF_SPECS[key], trust_remote_code)
+        return GrokAPIAdapter(grok_model)
+    if key == "grok-public":
+        return GrokPublicAdapter()
+    name, repository = JSON_SPECS[key]
+    return TokenizersJsonAdapter(name, repository)

@@ -11,10 +11,12 @@ from bpe_demo.report import source_text_table, summary_table, token_preview, wri
 
 SUPPORTED_MODELS = (
     "openai",
+    "openai-o200k",
     "anthropic",
     "gemini",
     "kimi",
     "deepseek",
+    "deepseek-v3.2",
     "deepseek-v4-pro",
     "qwen",
     "llama",
@@ -26,6 +28,29 @@ SUPPORTED_MODELS = (
     "hunyuan",
     "minimax",
     "grok",
+    "grok-public",
+    "cohere",
+    "nemotron",
+)
+
+DEFAULT_MODELS = (
+    "openai",
+    "openai-o200k",
+    "anthropic",
+    "gemini",
+    "kimi",
+    "deepseek",
+    "qwen",
+    "llama",
+    "mistral",
+    "gemma",
+    "glm",
+    "ernie",
+    "seed",
+    "hunyuan",
+    "minimax",
+    "grok",
+    "grok-public",
     "cohere",
     "nemotron",
 )
@@ -35,7 +60,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="比较头部 LLM tokenizer 对英文和中文短篇的编码效果。")
     parser.add_argument(
         "--models",
-        default=",".join(SUPPORTED_MODELS),
+        default=",".join(DEFAULT_MODELS),
         help="逗号分隔的 tokenizer: " + ",".join(SUPPORTED_MODELS),
     )
     parser.add_argument("--english", type=Path, help="替换内置英文测试文本的 UTF-8 文件")
@@ -46,17 +71,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--trust-remote-code",
         action="store_true",
-        help="允许加载官方 Hugging Face 仓库声明的 tokenizer 自定义 Python 代码",
+        help="兼容保留参数；当前默认适配器不执行 Hugging Face 远程代码",
+    )
+    parser.add_argument(
+        "--openai-model",
+        default=os.environ.get("OPENAI_MODEL", "gpt-5.5"),
+        help="OpenAI responses/input_tokens 使用的 model id",
     )
     parser.add_argument(
         "--anthropic-model",
-        default=os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929"),
+        default=os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-7"),
         help="Anthropic count_tokens 使用的 model id",
     )
     parser.add_argument(
         "--gemini-model",
-        default=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
+        default=os.environ.get("GEMINI_MODEL", "gemini-3.1-pro-preview"),
         help="Google countTokens 使用的 model id",
+    )
+    parser.add_argument(
+        "--grok-model",
+        default=os.environ.get("GROK_MODEL", "grok-4.3"),
+        help="xAI tokenize-text 使用的 model id",
     )
     return parser.parse_args(argv)
 
@@ -82,7 +117,14 @@ def main(argv: list[str] | None = None) -> int:
     skipped: dict[str, str] = {}
     for key in models:
         try:
-            adapter = build_adapter(key, args.trust_remote_code, args.anthropic_model, args.gemini_model)
+            adapter = build_adapter(
+                key,
+                args.trust_remote_code,
+                args.openai_model,
+                args.anthropic_model,
+                args.gemini_model,
+                args.grok_model,
+            )
             results.extend(adapter.tokenize(text, language) for language, text in texts.items())
         except AdapterUnavailable as exc:
             skipped[key] = str(exc)
