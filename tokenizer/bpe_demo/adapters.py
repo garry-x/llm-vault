@@ -219,6 +219,8 @@ def build_adapter(key: str, trust_remote_code: bool, anthropic_model: str, gemin
         return GeminiAdapter(gemini_model)
     if key == "deepseek":
         return TokenizersJsonAdapter("DeepSeek V3.2", "deepseek-ai/DeepSeek-V3.2")
+    if key == "deepseek-v4-pro":
+        return TokenizersJsonAdapter("DeepSeek V4 Pro", "deepseek-ai/DeepSeek-V4-Pro")
     if key == "grok":
         return GrokAdapter()
     return HuggingFaceAdapter(HF_SPECS[key], trust_remote_code)

@@ -13,6 +13,7 @@
 | `gemini` | Google Gemini | 官方 `models.countTokens` API | 否 |
 | `kimi` | Moonshot Kimi K2 Instruct | 官方 Hugging Face tokenizer，自定义代码 | 是 |
 | `deepseek` | DeepSeek V3.2 | 官方 Hugging Face `tokenizer.json` | 是 |
+| `deepseek-v4-pro` | DeepSeek V4 Pro | 官方 Hugging Face `tokenizer.json` | 是 |
 | `qwen` | Alibaba Qwen3 | 官方 Hugging Face tokenizer | 是 |
 | `llama` | Meta Llama 3.3 | 官方 Hugging Face tokenizer，可能需 HF 授权 | 是 |
 | `mistral` | Mistral Small 3.1 | 官方 Hugging Face tokenizer | 是 |
@@ -38,7 +39,7 @@ source .venv/bin/activate
 pip install -e .
 
 # 不需要 API key 的公开、本地可切片示例
-bpe-demo --models openai,deepseek,qwen,glm,ernie,seed \
+bpe-demo --models openai,deepseek,deepseek-v4-pro,qwen,glm,ernie,seed \
   --html reports/tokenizers.html --json reports/tokenizers.json
 
 # 全部入口；不可访问或未配置的项会列为 skipped
@@ -76,6 +77,7 @@ bpe-demo --models openai,qwen --english texts/story.en.txt --chinese texts/story
 - Gemini token counting: https://ai.google.dev/gemini-api/docs/tokens
 - Moonshot Kimi: https://huggingface.co/moonshotai/Kimi-K2-Instruct
 - DeepSeek: https://huggingface.co/deepseek-ai/DeepSeek-V3.2
+- DeepSeek V4 Pro: https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro
 - Qwen: https://huggingface.co/Qwen/Qwen3-8B
 - Meta Llama: https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct
 - Mistral: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503
@@ -102,4 +104,4 @@ bpe-demo --models openai,qwen --english texts/story.en.txt --chinese texts/story
 | Mistral | 官方开源 `mistralai/mistral-common`，含版本化 tokenizer；本示例对纯文本加载同仓库 tokenizer 文件 |
 | Meta | 官方 Llama 仓库提供 tokenizer 下载流程，但需要接受 Meta 许可 |
 | xAI | Grok-2 发布 `tokenizer.tok.json`，模型卡指向 SGLang 开源的 tiktoken 解析实现；本示例复现该读取方式 |
-| 国内开源模型 | Kimi、DeepSeek、Qwen、GLM、ERNIE、Seed、Hunyuan、MiniMax 均发布了模型仓库中的 tokenizer 资源；DeepSeek 在本例中直接读取其 `tokenizer.json`，避免加载无关模型配置 |
+| 国内开源模型 | Kimi、DeepSeek、Qwen、GLM、ERNIE、Seed、Hunyuan、MiniMax 均发布了模型仓库中的 tokenizer 资源；DeepSeek V3.2 与 V4 Pro 在本例中直接读取各自官方 `tokenizer.json`，避免加载无关模型配置 |

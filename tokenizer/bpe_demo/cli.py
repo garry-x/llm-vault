@@ -15,6 +15,7 @@ SUPPORTED_MODELS = (
     "gemini",
     "kimi",
     "deepseek",
+    "deepseek-v4-pro",
     "qwen",
     "llama",
     "mistral",

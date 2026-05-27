@@ -19,7 +19,7 @@ class DummyAdapter:
 
 class CliTests(unittest.TestCase):
     def test_all_declared_models_are_accepted(self):
-        keys = _model_keys("openai,gemini,glm,ernie,seed,hunyuan,minimax,grok,cohere,nemotron")
+        keys = _model_keys("openai,gemini,deepseek-v4-pro,glm,ernie,seed,hunyuan,minimax,grok,cohere,nemotron")
         self.assertEqual(keys[-1], "nemotron")
 
     def test_cli_writes_reports(self):

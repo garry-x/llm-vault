@@ -309,7 +309,7 @@
     <div class="frame">
       <div class="eyebrow">Tokenizer Research Brief / 2026.05</div>
       <h1>头部模型的中英文编码效率</h1>
-      <p class="lede">同一篇双语短篇，在不同模型 tokenizer 中会占用多少上下文？本页梳理 17 个模型入口的公开资源边界，并用 9 个已实际运行的 tokenizer 比较中文与英文压缩效率。</p>
+      <p class="lede">同一篇双语短篇，在不同模型 tokenizer 中会占用多少上下文？本页梳理 18 个模型入口的公开资源边界，并用 10 个已实际运行的 tokenizer 比较中文与英文压缩效率。</p>
       <div class="stamp">
         <span class="pill">基于《港口的钟》双语文本</span>
         <span class="pill">压缩率单位 chars/token</span>
@@ -334,9 +334,9 @@
   <main class="frame">
     <section id="overview">
       <div class="kpis">
-        <article class="kpi"><span>纳入模型家族</span><strong>17</strong><span>公开资源 / API 路径已梳理</span></article>
-        <article class="kpi"><span>实际本地验证</span><strong>9</strong><span>可生成真实 token 切片</span></article>
-        <article class="kpi"><span>中文最少 tokens</span><strong>256</strong><span>DeepSeek V3.2</span></article>
+        <article class="kpi"><span>纳入模型入口</span><strong>18</strong><span>公开资源 / API 路径已梳理</span></article>
+        <article class="kpi"><span>实际本地验证</span><strong>10</strong><span>可生成真实 token 切片</span></article>
+        <article class="kpi"><span>中文最少 tokens</span><strong>256</strong><span>DeepSeek V3.2 / V4 Pro</span></article>
         <article class="kpi"><span>中文最大降幅</span><strong>31.9%</strong><span>DeepSeek 对比 Mistral</span></article>
       </div>
     </section>
@@ -355,8 +355,8 @@
       <article class="panel">
         <h2>先看结论</h2>
         <ul class="insights">
-          <li><span class="badge best">中文</span>DeepSeek、Seed、GLM 在该中文短篇上最紧凑，均达到 <strong>1.45 chars/token</strong> 以上。</li>
-          <li><span class="badge best">英文</span>9 个 tokenizer 集中在 224–245 tokens，分化远小于中文。</li>
+          <li><span class="badge best">中文</span>DeepSeek V3.2 与 V4 Pro 并列第一，Seed、GLM 紧随其后，均达到 <strong>1.45 chars/token</strong> 以上。</li>
+          <li><span class="badge best">英文</span>10 个 tokenizer 集中在 224–245 tokens，分化远小于中文。</li>
           <li><span class="badge warn">注意</span>词表越大不必然中文越省 token：Cohere 约 255k 词表仍弱于 DeepSeek 约 128k。</li>
           <li><span class="badge api">边界</span>Claude 与 Gemini 只有官方 API 计数路径，不能用第三方切片替代线上真实 tokenizer。</li>
         </ul>
@@ -370,7 +370,7 @@
           <h3>中文压缩率</h3>
           <p class="chart-note">chars/token，越高越好；按压缩率排序</p>
           <div id="zh-bars"></div>
-          <p class="delta">DeepSeek 处理本样本仅需 <strong>256</strong> tokens，相比 Mistral 的 <strong>376</strong> tokens 少 120 个。</p>
+          <p class="delta">DeepSeek V3.2 与 V4 Pro 处理本样本均仅需 <strong>256</strong> tokens，相比 Mistral 的 <strong>376</strong> tokens 少 120 个。</p>
         </article>
         <article class="panel">
           <h3>英文压缩率</h3>
@@ -409,13 +409,13 @@
     </section>
 
     <section id="coverage">
-      <h2>17 个模型入口的可复现路径</h2>
+      <h2>18 个模型入口的可复现路径</h2>
       <div class="coverage">
         <article class="coverage-card">
           <h3>本地 tokenizer / 可展示切片</h3>
           <p>厂商公开 tokenizer 文件或官方指向的读取实现，可下载后本地精确编码。部分尚需仓库许可。</p>
           <div class="tags">
-            <span class="tag">OpenAI</span><span class="tag">DeepSeek</span><span class="tag">Qwen</span>
+            <span class="tag">OpenAI</span><span class="tag">DeepSeek V3.2</span><span class="tag">DeepSeek V4 Pro</span><span class="tag">Qwen</span>
             <span class="tag">Mistral</span><span class="tag">GLM</span><span class="tag">ERNIE</span>
             <span class="tag">Seed</span><span class="tag">Grok</span><span class="tag">Cohere</span>
             <span class="tag">Llama*</span><span class="tag">Gemma*</span>
@@ -440,7 +440,7 @@
       <div class="families">
         <article class="family"><h3>OpenAI</h3><p><code>tiktoken</code> 为官方开源实现；GPT-4o 的 <code>o200k_base</code> 可本地查看 id 与字节片段。</p></article>
         <article class="family"><h3>Claude / Gemini</h3><p>当前精确路径是官方计数 API。它们与本地纯文本编码的口径不同，不应假设可视化切片。</p></article>
-        <article class="family"><h3>中文公开模型</h3><p>DeepSeek、Qwen、GLM、ERNIE、Seed 均发布 tokenizer 资源，本样本中文效率整体占优。</p></article>
+        <article class="family"><h3>中文公开模型</h3><p>DeepSeek、Qwen、GLM、ERNIE、Seed 均发布 tokenizer 资源。本样本中 DeepSeek V3.2 与 V4 Pro 的 token id 序列相同，但 V4 Pro 词表多 465 个条目。</p></article>
         <article class="family"><h3>Mistral</h3><p>官方维护 <code>mistral-common</code>；本例对所选仓库启用了 Transformers 提示的 regex 修正。</p></article>
         <article class="family"><h3>xAI Grok</h3><p>官方发布 <code>tokenizer.tok.json</code>，为 tiktoken 格式；本程序复现 SGLang 公开解析路径。</p></article>
         <article class="family"><h3>授权与信任边界</h3><p>执行 remote code 或接受模型许可，是获取 tokenizer 的边界，不代表相应模型缺少 tokenizer。</p></article>
@@ -458,6 +458,7 @@
         <li><a href="https://docs.anthropic.com/en/docs/build-with-claude/token-counting">Anthropic / token counting</a></li>
         <li><a href="https://ai.google.dev/gemini-api/docs/tokens">Google Gemini / countTokens</a></li>
         <li><a href="https://huggingface.co/deepseek-ai/DeepSeek-V3.2">DeepSeek V3.2</a></li>
+        <li><a href="https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro">DeepSeek V4 Pro</a></li>
         <li><a href="https://huggingface.co/Qwen/Qwen3-8B">Qwen3 8B</a></li>
         <li><a href="https://huggingface.co/zai-org/GLM-4.5">GLM-4.5</a></li>
         <li><a href="https://huggingface.co/ByteDance-Seed/Seed-OSS-36B-Instruct">Seed OSS</a></li>
@@ -483,6 +484,7 @@
       {name:"Qwen3 8B", mechanism:"HF Fast / BPE", vocab:151669, enTokens:226, enRatio:4.82, zhTokens:268, zhRatio:1.42},
       {name:"xAI Grok-2", mechanism:"tiktoken 工件", vocab:131072, enTokens:224, enRatio:4.86, zhTokens:291, zhRatio:1.31},
       {name:"DeepSeek V3.2", mechanism:"tokenizer.json / BPE", vocab:128815, enTokens:226, enRatio:4.82, zhTokens:256, zhRatio:1.49},
+      {name:"DeepSeek V4 Pro", mechanism:"tokenizer.json / BPE", vocab:129280, enTokens:226, enRatio:4.82, zhTokens:256, zhRatio:1.49},
       {name:"Z.ai GLM-4.5", mechanism:"HF Fast / BPE", vocab:151365, enTokens:226, enRatio:4.82, zhTokens:263, zhRatio:1.45},
       {name:"ByteDance Seed OSS", mechanism:"HF Fast / BPE", vocab:155121, enTokens:231, enRatio:4.71, zhTokens:260, zhRatio:1.47},
       {name:"Mistral Small 3.1", mechanism:"HF Fast / BPE + regex fix", vocab:131072, enTokens:229, enRatio:4.76, zhTokens:376, zhRatio:1.01},
@@ -504,7 +506,7 @@
       const lowerFirst = sort === "zhTokens";
       const ordered = [...models].sort((a, b) => lowerFirst ? a[sort] - b[sort] : b[sort] - a[sort]);
       document.getElementById("model-table").innerHTML = ordered.map(model => `
-        <tr class="${model.name === "DeepSeek V3.2" ? "highlight" : ""}">
+        <tr class="${model.name.startsWith("DeepSeek") ? "highlight" : ""}">
           <td>${escapeText(model.name)}</td>
           <td>${escapeText(model.mechanism)}</td>
           <td class="num">${model.vocab.toLocaleString("zh-CN")}</td>
