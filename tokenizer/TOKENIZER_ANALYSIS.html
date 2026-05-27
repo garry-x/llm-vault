@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>头部模型 Tokenizer 分析 | 中英文编码效率</title>
+  <style>
+    :root {
+      --ink: #142824;
+      --subtle: #586c67;
+      --paper: #f8f5ed;
+      --panel: #fffdf7;
+      --line: #dfd8c7;
+      --jade: #087f6b;
+      --jade-soft: #d5ece4;
+      --gold: #c88725;
+      --gold-soft: #f5e5c5;
+      --coral: #bd5648;
+      --coral-soft: #f1d9d4;
+      --blue: #376d9a;
+      --blue-soft: #dbe8f4;
+      --shadow: 0 16px 44px rgba(31, 45, 40, .07);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 88% 4%, #d5ece4 0, transparent 29rem),
+        linear-gradient(110deg, #f1ecde 0%, var(--paper) 35%, #fbf8ef 100%);
+      font-family: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+    }
+    a { color: var(--jade); text-decoration-color: rgba(8,127,107,.35); }
+    code {
+      font-family: "SFMono-Regular", "Cascadia Code", monospace;
+      background: #efe9da;
+      padding: .12em .38em;
+      border-radius: 5px;
+      font-size: .9em;
+    }
+    .frame { width: min(1220px, calc(100% - 44px)); margin: 0 auto; }
+    header {
+      padding: 56px 0 30px;
+      border-bottom: 1px solid var(--line);
+    }
+    .eyebrow {
+      color: var(--jade);
+      text-transform: uppercase;
+      letter-spacing: .16em;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    h1 {
+      font-family: "Songti SC", "Noto Serif SC", Georgia, serif;
+      font-size: clamp(38px, 5.5vw, 64px);
+      letter-spacing: -.05em;
+      line-height: 1.12;
+      max-width: 780px;
+      margin: 14px 0 16px;
+    }
+    .lede {
+      max-width: 760px;
+      color: var(--subtle);
+      line-height: 1.75;
+      font-size: 16px;
+    }
+    .stamp {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 30px;
+    }
+    .pill {
+      padding: 8px 13px;
+      border: 1px solid var(--line);
+      border-radius: 100px;
+      font-size: 13px;
+      color: var(--subtle);
+      background: rgba(255,253,247,.65);
+    }
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      backdrop-filter: blur(14px);
+      background: rgba(248,245,237,.9);
+      border-bottom: 1px solid var(--line);
+    }
+    nav .frame {
+      display: flex;
+      gap: 22px;
+      overflow-x: auto;
+      padding: 13px 0;
+      white-space: nowrap;
+    }
+    nav a { color: var(--subtle); font-size: 14px; text-decoration: none; }
+    nav a:hover { color: var(--jade); }
+    main { padding: 34px 0 68px; }
+    section { margin-bottom: 42px; }
+    h2 {
+      margin: 0 0 18px;
+      font-size: 25px;
+      font-family: "Songti SC", "Noto Serif SC", Georgia, serif;
+      letter-spacing: -.03em;
+    }
+    h3 { margin: 0 0 10px; font-size: 17px; }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    .kpi, .panel, .callout {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      box-shadow: var(--shadow);
+    }
+    .kpi { padding: 21px 20px 19px; }
+    .kpi strong {
+      display: block;
+      font-size: clamp(28px, 4vw, 38px);
+      line-height: 1;
+      font-weight: 650;
+      color: var(--jade);
+      margin: 8px 0 7px;
+    }
+    .kpi span { font-size: 13px; color: var(--subtle); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .panel { padding: 23px; overflow: hidden; }
+    .panel p { margin: 0 0 12px; color: var(--subtle); line-height: 1.65; }
+    .definition {
+      font-size: 23px;
+      padding: 21px 0 18px;
+      color: var(--jade);
+      font-weight: 600;
+    }
+    .text-size {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 11px;
+      margin-top: 13px;
+    }
+    .text-size div {
+      border-radius: 11px;
+      padding: 12px 13px;
+      background: #f1eddf;
+    }
+    .text-size strong { display: block; margin-top: 5px; font-size: 23px; }
+    .insights { margin: 0; padding: 0; list-style: none; }
+    .insights li {
+      border-top: 1px solid var(--line);
+      padding: 12px 0;
+      line-height: 1.58;
+    }
+    .insights li:first-child { border-top: 0; padding-top: 0; }
+    .badge {
+      display: inline-block;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 8px;
+      margin-right: 8px;
+    }
+    .best { color: var(--jade); background: var(--jade-soft); }
+    .warn { color: var(--coral); background: var(--coral-soft); }
+    .api { color: var(--blue); background: var(--blue-soft); }
+    .charts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+    .chart-note { color: var(--subtle); font-size: 13px; margin: -7px 0 18px; }
+    .row {
+      display: grid;
+      grid-template-columns: 150px 1fr 54px;
+      align-items: center;
+      gap: 10px;
+      margin: 10px 0;
+      font-size: 13px;
+    }
+    .bar-shell {
+      background: #eee9dc;
+      height: 20px;
+      border-radius: 100px;
+      overflow: hidden;
+    }
+    .bar {
+      height: 100%;
+      border-radius: inherit;
+      background: var(--jade);
+    }
+    .bar.en { background: var(--gold); }
+    .row:first-of-type .bar { background: #066351; }
+    .value { font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
+    .delta {
+      margin: 20px 0 0;
+      padding: 12px 14px;
+      background: var(--jade-soft);
+      border-radius: 10px;
+      color: #145749;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+    button {
+      appearance: none;
+      background: #f2eddf;
+      border: 1px solid var(--line);
+      border-radius: 100px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 13px;
+      color: var(--subtle);
+      padding: 7px 12px;
+    }
+    button.active { color: #fff; background: var(--jade); border-color: var(--jade); }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th {
+      color: var(--subtle);
+      font-weight: 600;
+      text-align: left;
+      white-space: nowrap;
+      padding: 0 12px 12px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    td {
+      padding: 13px 12px 13px 0;
+      border-bottom: 1px solid #ede8db;
+      vertical-align: top;
+    }
+    td.num { font-variant-numeric: tabular-nums; text-align: right; }
+    th.num { text-align: right; }
+    tbody tr.highlight td { color: #075d4d; font-weight: 600; }
+    .coverage {
+      display: grid;
+      grid-template-columns: 1.45fr .8fr 1fr;
+      gap: 15px;
+    }
+    .coverage-card {
+      padding: 21px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--jade);
+      border-radius: 13px;
+    }
+    .coverage-card.api-card { border-top-color: var(--blue); }
+    .coverage-card.guard-card { border-top-color: var(--gold); }
+    .coverage-card p { font-size: 13px; color: var(--subtle); line-height: 1.55; }
+    .tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 15px; }
+    .tag {
+      font-size: 12px;
+      border: 1px solid var(--line);
+      background: #f5f0e4;
+      border-radius: 7px;
+      padding: 5px 8px;
+    }
+    .families { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .family {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 18px 18px 15px;
+      border-radius: 12px;
+    }
+    .family p {
+      margin: 0;
+      color: var(--subtle);
+      font-size: 13px;
+      line-height: 1.58;
+    }
+    .callout {
+      border-left: 4px solid var(--gold);
+      padding: 20px 23px;
+      line-height: 1.7;
+      color: var(--subtle);
+    }
+    .sources {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 9px 18px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      font-size: 13px;
+    }
+    .sources a { display: block; padding: 9px 0; border-bottom: 1px solid #ebe5d7; }
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 24px 0 46px;
+      color: var(--subtle);
+      font-size: 13px;
+    }
+    @media (max-width: 960px) {
+      .kpis, .charts, .grid-2, .coverage, .families, .sources { grid-template-columns: 1fr 1fr; }
+      .coverage-card:first-child { grid-column: span 2; }
+    }
+    @media (max-width: 640px) {
+      .frame { width: min(100% - 28px, 1220px); }
+      header { padding-top: 38px; }
+      .kpis, .charts, .grid-2, .coverage, .families, .sources { grid-template-columns: 1fr; }
+      .coverage-card:first-child { grid-column: span 1; }
+      .row { grid-template-columns: 110px 1fr 45px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="frame">
+      <div class="eyebrow">Tokenizer Research Brief / 2026.05</div>
+      <h1>头部模型的中英文编码效率</h1>
+      <p class="lede">同一篇双语短篇，在不同模型 tokenizer 中会占用多少上下文？本页梳理 17 个模型入口的公开资源边界，并用 9 个已实际运行的 tokenizer 比较中文与英文压缩效率。</p>
+      <div class="stamp">
+        <span class="pill">基于《港口的钟》双语文本</span>
+        <span class="pill">压缩率单位 chars/token</span>
+        <span class="pill">公开资源核验日期 2026-05-27</span>
+        <span class="pill">纯文本编码，不含 chat template</span>
+      </div>
+    </div>
+  </header>
+
+  <nav>
+    <div class="frame">
+      <a href="#overview">概览</a>
+      <a href="#method">口径</a>
+      <a href="#charts">编码表现</a>
+      <a href="#verified">验证明细</a>
+      <a href="#coverage">资源矩阵</a>
+      <a href="#interpretation">解读</a>
+      <a href="#sources">来源</a>
+    </div>
+  </nav>
+
+  <main class="frame">
+    <section id="overview">
+      <div class="kpis">
+        <article class="kpi"><span>纳入模型家族</span><strong>17</strong><span>公开资源 / API 路径已梳理</span></article>
+        <article class="kpi"><span>实际本地验证</span><strong>9</strong><span>可生成真实 token 切片</span></article>
+        <article class="kpi"><span>中文最少 tokens</span><strong>256</strong><span>DeepSeek V3.2</span></article>
+        <article class="kpi"><span>中文最大降幅</span><strong>31.9%</strong><span>DeepSeek 对比 Mistral</span></article>
+      </div>
+    </section>
+
+    <section id="method" class="grid-2">
+      <article class="panel">
+        <h2>比较口径</h2>
+        <p>文本为语义对应的原创微型小说中英文版本。结果适合在同一语言内横向比较 tokenizer，而不是把中英文绝对数直接解释为语言能力。</p>
+        <div class="definition">压缩率 = 字符数 / token 数</div>
+        <p>数值越高，表示每个 token 覆盖的原文字符越多，即同样上下文预算能承载更多文本。</p>
+        <div class="text-size">
+          <div><span>English</span><strong>1,089</strong><small>字符 / 字节</small></div>
+          <div><span>中文</span><strong>381</strong><small>字符 · 1,123 字节</small></div>
+        </div>
+      </article>
+      <article class="panel">
+        <h2>先看结论</h2>
+        <ul class="insights">
+          <li><span class="badge best">中文</span>DeepSeek、Seed、GLM 在该中文短篇上最紧凑，均达到 <strong>1.45 chars/token</strong> 以上。</li>
+          <li><span class="badge best">英文</span>9 个 tokenizer 集中在 224–245 tokens，分化远小于中文。</li>
+          <li><span class="badge warn">注意</span>词表越大不必然中文越省 token：Cohere 约 255k 词表仍弱于 DeepSeek 约 128k。</li>
+          <li><span class="badge api">边界</span>Claude 与 Gemini 只有官方 API 计数路径，不能用第三方切片替代线上真实 tokenizer。</li>
+        </ul>
+      </article>
+    </section>
+
+    <section id="charts">
+      <h2>实际编码表现</h2>
+      <div class="charts">
+        <article class="panel">
+          <h3>中文压缩率</h3>
+          <p class="chart-note">chars/token，越高越好；按压缩率排序</p>
+          <div id="zh-bars"></div>
+          <p class="delta">DeepSeek 处理本样本仅需 <strong>256</strong> tokens，相比 Mistral 的 <strong>376</strong> tokens 少 120 个。</p>
+        </article>
+        <article class="panel">
+          <h3>英文压缩率</h3>
+          <p class="chart-note">chars/token，越高越好；英文差距相对收敛</p>
+          <div id="en-bars"></div>
+          <p class="delta">Grok 与 Cohere 并列第一（<strong>4.86</strong>），最末的 ERNIE 仍为 <strong>4.44</strong>，差距不足中文分化幅度。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="verified" class="panel">
+      <h2>已验证 Tokenizer 明细</h2>
+      <p>以下数据来自本地加载的厂商发布 tokenizer 资源；点击维度切换排序。</p>
+      <div class="controls" aria-label="排序维度">
+        <button class="active" data-sort="zhRatio">按中文压缩率</button>
+        <button data-sort="enRatio">按英文压缩率</button>
+        <button data-sort="vocab">按词表规模</button>
+        <button data-sort="zhTokens">按中文 tokens</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>模型</th>
+              <th>加载机制</th>
+              <th class="num">词表规模</th>
+              <th class="num">英文 tokens</th>
+              <th class="num">英文压缩率</th>
+              <th class="num">中文 tokens</th>
+              <th class="num">中文压缩率</th>
+            </tr>
+          </thead>
+          <tbody id="model-table"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="coverage">
+      <h2>17 个模型入口的可复现路径</h2>
+      <div class="coverage">
+        <article class="coverage-card">
+          <h3>本地 tokenizer / 可展示切片</h3>
+          <p>厂商公开 tokenizer 文件或官方指向的读取实现，可下载后本地精确编码。部分尚需仓库许可。</p>
+          <div class="tags">
+            <span class="tag">OpenAI</span><span class="tag">DeepSeek</span><span class="tag">Qwen</span>
+            <span class="tag">Mistral</span><span class="tag">GLM</span><span class="tag">ERNIE</span>
+            <span class="tag">Seed</span><span class="tag">Grok</span><span class="tag">Cohere</span>
+            <span class="tag">Llama*</span><span class="tag">Gemma*</span>
+          </div>
+        </article>
+        <article class="coverage-card api-card">
+          <h3>官方 API 计数</h3>
+          <p>精确统计线上模型输入 token，但不提供逐 token 切片。</p>
+          <div class="tags"><span class="tag">Anthropic Claude</span><span class="tag">Google Gemini</span></div>
+        </article>
+        <article class="coverage-card guard-card">
+          <h3>显式信任代码后加载</h3>
+          <p>仓库路径涉及自定义 tokenizer 代码，本程序默认不执行。</p>
+          <div class="tags"><span class="tag">Kimi</span><span class="tag">Hunyuan</span><span class="tag">MiniMax</span><span class="tag">Nemotron</span></div>
+        </article>
+      </div>
+      <p class="chart-note" style="margin-top:12px">* Llama 与 Gemma 仓库可能需要登录并接受模型许可。</p>
+    </section>
+
+    <section id="interpretation">
+      <h2>模型家族解读</h2>
+      <div class="families">
+        <article class="family"><h3>OpenAI</h3><p><code>tiktoken</code> 为官方开源实现；GPT-4o 的 <code>o200k_base</code> 可本地查看 id 与字节片段。</p></article>
+        <article class="family"><h3>Claude / Gemini</h3><p>当前精确路径是官方计数 API。它们与本地纯文本编码的口径不同，不应假设可视化切片。</p></article>
+        <article class="family"><h3>中文公开模型</h3><p>DeepSeek、Qwen、GLM、ERNIE、Seed 均发布 tokenizer 资源，本样本中文效率整体占优。</p></article>
+        <article class="family"><h3>Mistral</h3><p>官方维护 <code>mistral-common</code>；本例对所选仓库启用了 Transformers 提示的 regex 修正。</p></article>
+        <article class="family"><h3>xAI Grok</h3><p>官方发布 <code>tokenizer.tok.json</code>，为 tiktoken 格式；本程序复现 SGLang 公开解析路径。</p></article>
+        <article class="family"><h3>授权与信任边界</h3><p>执行 remote code 或接受模型许可，是获取 tokenizer 的边界，不代表相应模型缺少 tokenizer。</p></article>
+      </div>
+    </section>
+
+    <section>
+      <div class="callout"><strong>实践建议：</strong>成本估算应固定实际模型 id，并使用业务真实语料分别测试中文、英文与混合文本。对 RAG 或长上下文服务，中文 tokenizer 的 20%–30% token 差异可直接转化为容量与费用差异。</div>
+    </section>
+
+    <section id="sources" class="panel">
+      <h2>主要来源与复现入口</h2>
+      <ul class="sources">
+        <li><a href="https://github.com/openai/tiktoken">OpenAI / tiktoken</a></li>
+        <li><a href="https://docs.anthropic.com/en/docs/build-with-claude/token-counting">Anthropic / token counting</a></li>
+        <li><a href="https://ai.google.dev/gemini-api/docs/tokens">Google Gemini / countTokens</a></li>
+        <li><a href="https://huggingface.co/deepseek-ai/DeepSeek-V3.2">DeepSeek V3.2</a></li>
+        <li><a href="https://huggingface.co/Qwen/Qwen3-8B">Qwen3 8B</a></li>
+        <li><a href="https://huggingface.co/zai-org/GLM-4.5">GLM-4.5</a></li>
+        <li><a href="https://huggingface.co/ByteDance-Seed/Seed-OSS-36B-Instruct">Seed OSS</a></li>
+        <li><a href="https://github.com/mistralai/mistral-common">Mistral / mistral-common</a></li>
+        <li><a href="https://huggingface.co/xai-org/grok-2">xAI Grok-2</a></li>
+        <li><a href="https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/tokenizer/tiktoken_tokenizer.py">SGLang / Grok loader</a></li>
+        <li><a href="https://huggingface.co/baidu/ERNIE-4.5-21B-A3B-PT">ERNIE 4.5</a></li>
+        <li><a href="https://huggingface.co/CohereLabs/command-a-plus-05-2026-bf16">Cohere Command A+</a></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <div class="frame">
+      基于 <a href="TOKENIZER_ANALYSIS.md">TOKENIZER_ANALYSIS.md</a> 制作 · 查看逐 token 彩色切片报告：
+      <a href="reports/verified.html">reports/verified.html</a>
+    </div>
+  </footer>
+
+  <script>
+    const models = [
+      {name:"OpenAI GPT-4o", mechanism:"tiktoken / o200k_base", vocab:200019, enTokens:226, enRatio:4.82, zhTokens:324, zhRatio:1.18},
+      {name:"Qwen3 8B", mechanism:"HF Fast / BPE", vocab:151669, enTokens:226, enRatio:4.82, zhTokens:268, zhRatio:1.42},
+      {name:"xAI Grok-2", mechanism:"tiktoken 工件", vocab:131072, enTokens:224, enRatio:4.86, zhTokens:291, zhRatio:1.31},
+      {name:"DeepSeek V3.2", mechanism:"tokenizer.json / BPE", vocab:128815, enTokens:226, enRatio:4.82, zhTokens:256, zhRatio:1.49},
+      {name:"Z.ai GLM-4.5", mechanism:"HF Fast / BPE", vocab:151365, enTokens:226, enRatio:4.82, zhTokens:263, zhRatio:1.45},
+      {name:"ByteDance Seed OSS", mechanism:"HF Fast / BPE", vocab:155121, enTokens:231, enRatio:4.71, zhTokens:260, zhRatio:1.47},
+      {name:"Mistral Small 3.1", mechanism:"HF Fast / BPE + regex fix", vocab:131072, enTokens:229, enRatio:4.76, zhTokens:376, zhRatio:1.01},
+      {name:"Baidu ERNIE 4.5", mechanism:"HF tokenizer / BPE", vocab:101304, enTokens:245, enRatio:4.44, zhTokens:273, zhRatio:1.40},
+      {name:"Cohere Command A+", mechanism:"HF Fast / BPE", vocab:255032, enTokens:224, enRatio:4.86, zhTokens:282, zhRatio:1.35}
+    ];
+    const escapeText = value => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    function bars(id, key, className) {
+      const ordered = [...models].sort((a, b) => b[key] - a[key]);
+      const max = ordered[0][key];
+      document.getElementById(id).innerHTML = ordered.map(model => `
+        <div class="row">
+          <span>${escapeText(model.name)}</span>
+          <div class="bar-shell"><div class="bar ${className}" style="width:${(model[key] / max * 100).toFixed(1)}%"></div></div>
+          <span class="value">${model[key].toFixed(2)}</span>
+        </div>`).join("");
+    }
+    function table(sort) {
+      const lowerFirst = sort === "zhTokens";
+      const ordered = [...models].sort((a, b) => lowerFirst ? a[sort] - b[sort] : b[sort] - a[sort]);
+      document.getElementById("model-table").innerHTML = ordered.map(model => `
+        <tr class="${model.name === "DeepSeek V3.2" ? "highlight" : ""}">
+          <td>${escapeText(model.name)}</td>
+          <td>${escapeText(model.mechanism)}</td>
+          <td class="num">${model.vocab.toLocaleString("zh-CN")}</td>
+          <td class="num">${model.enTokens}</td>
+          <td class="num">${model.enRatio.toFixed(2)}</td>
+          <td class="num">${model.zhTokens}</td>
+          <td class="num">${model.zhRatio.toFixed(2)}</td>
+        </tr>`).join("");
+    }
+    document.querySelectorAll("button[data-sort]").forEach(button => button.addEventListener("click", () => {
+      document.querySelectorAll("button[data-sort]").forEach(item => item.classList.remove("active"));
+      button.classList.add("active");
+      table(button.dataset.sort);
+    }));
+    bars("zh-bars", "zhRatio", "");
+    bars("en-bars", "enRatio", "en");
+    table("zhRatio");
+  </script>
+</body>
+</html>

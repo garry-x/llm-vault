@@ -2,7 +2,7 @@
 
 这是一个 tokenizer（subword 分词器）比较程序。它用同一篇原创微型小说的英文版与中文版，比较主流大模型家族的编码长度和 token 切片。习惯上常称为 “BPE 测试”，但各家 tokenizer 的具体算法并不都严格等同于 BPE。
 
-更完整的模型 tokenizer 机制、公开程度与本样本结果分析见 [TOKENIZER_ANALYSIS.md](TOKENIZER_ANALYSIS.md)。
+更完整的模型 tokenizer 机制、公开程度与本样本结果分析见 [TOKENIZER_ANALYSIS.md](TOKENIZER_ANALYSIS.md)，可视化展示页见 [TOKENIZER_ANALYSIS.html](TOKENIZER_ANALYSIS.html)。
 
 ## 覆盖模型
 
