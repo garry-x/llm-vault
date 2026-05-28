@@ -2,7 +2,7 @@
 
 这是一个 tokenizer（subword 分词器）比较程序。它用同一篇原创微型小说的英文版与中文版，比较头部大模型家族在两种语言上的编码长度、压缩率和可获得的 token 切片。习惯上常称为 “BPE 测试”，但各家 tokenizer 的算法并不都严格等同于 BPE。
 
-完整的版本核验和结果分析见 [TOKENIZER_ANALYSIS.md](TOKENIZER_ANALYSIS.md)，展示页面见 [TOKENIZER_ANALYSIS.html](TOKENIZER_ANALYSIS.html)。模型与公开资源核验日期为 **2026-05-27**。
+完整的版本核验、结果分析与可视化展示见 [TOKENIZER_ANALYSIS.html](TOKENIZER_ANALYSIS.html)。模型与公开资源核验日期为 **2026-05-27**。
 
 ## 最新模型入口
 

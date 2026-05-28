@@ -147,6 +147,53 @@
       background: #f1eddf;
     }
     .text-size strong { display: block; margin-top: 5px; font-size: 23px; }
+    .story-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .story-grid details {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      overflow: hidden;
+    }
+    .story-grid summary {
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      padding: 17px 19px;
+      font-weight: 600;
+    }
+    .story-grid summary::-webkit-details-marker { display: none; }
+    .story-grid summary::after {
+      content: "+";
+      color: var(--jade);
+      font-size: 22px;
+      line-height: 1;
+    }
+    .story-grid details[open] summary::after { content: "-"; }
+    .story-meta {
+      color: var(--subtle);
+      font-size: 12px;
+      font-weight: 400;
+      margin-right: auto;
+    }
+    .story {
+      border-top: 1px solid var(--line);
+      background: #fcf8ee;
+      color: #30443f;
+      font-family: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.85;
+      margin: 0;
+      padding: 18px 19px 20px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
     .insights { margin: 0; padding: 0; list-style: none; }
     .insights li {
       border-top: 1px solid var(--line);
@@ -201,6 +248,46 @@
       color: #145749;
       font-size: 14px;
       line-height: 1.55;
+    }
+    .reason-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 17px;
+    }
+    .reason {
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--jade);
+      border-radius: 12px;
+      padding: 18px 18px 15px;
+      background: var(--panel);
+    }
+    .reason:nth-child(2) { border-top-color: var(--gold); }
+    .reason:nth-child(3) { border-top-color: var(--blue); }
+    .reason .metric {
+      color: var(--jade);
+      font-size: 29px;
+      line-height: 1;
+      font-weight: 650;
+      margin: 9px 0 7px;
+    }
+    .reason:nth-child(2) .metric { color: var(--gold); }
+    .reason:nth-child(3) .metric { color: var(--blue); }
+    .reason p {
+      margin: 0 0 10px;
+      color: var(--subtle);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .reason code { white-space: nowrap; }
+    .evidence-note {
+      margin: 13px 0 0;
+      padding: 14px 16px;
+      border-radius: 10px;
+      background: #f2eddf;
+      color: var(--subtle);
+      font-size: 13px;
+      line-height: 1.65;
     }
     .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
     button {
@@ -292,13 +379,13 @@
       font-size: 13px;
     }
     @media (max-width: 960px) {
-      .kpis, .charts, .grid-2, .coverage, .families, .sources { grid-template-columns: 1fr 1fr; }
+      .kpis, .charts, .grid-2, .story-grid, .reason-grid, .coverage, .families, .sources { grid-template-columns: 1fr 1fr; }
       .coverage-card:first-child { grid-column: span 2; }
     }
     @media (max-width: 640px) {
       .frame { width: min(100% - 28px, 1220px); }
       header { padding-top: 38px; }
-      .kpis, .charts, .grid-2, .coverage, .families, .sources { grid-template-columns: 1fr; }
+      .kpis, .charts, .grid-2, .story-grid, .reason-grid, .coverage, .families, .sources { grid-template-columns: 1fr; }
       .coverage-card:first-child { grid-column: span 1; }
       .row { grid-template-columns: 110px 1fr 45px; }
     }
@@ -323,7 +410,9 @@
     <div class="frame">
       <a href="#overview">概览</a>
       <a href="#method">口径</a>
+      <a href="#stories">测试原文</a>
       <a href="#charts">编码表现</a>
+      <a href="#why">领先原因</a>
       <a href="#verified">验证明细</a>
       <a href="#coverage">资源矩阵</a>
       <a href="#interpretation">解读</a>
@@ -363,6 +452,41 @@
       </article>
     </section>
 
+    <section id="stories">
+      <h2>测试原文</h2>
+      <p class="chart-note">以下为程序内置的同题双语微型小说，默认折叠；展开可核对统计所使用的完整输入内容。</p>
+      <div class="story-grid">
+        <details>
+          <summary>English <span class="story-meta">1,089 characters / 1,089 bytes</span></summary>
+          <pre class="story">The Clock at the Harbor
+
+Every evening, Mara unlocked the little clock shop after the fishermen had gone home. The shop belonged to her grandfather, who had left one unfinished repair on the bench: a brass pocket watch that refused to pass eleven fifty-nine.
+
+One rainy night, a letter slid beneath the door. "When the harbor clock strikes twelve, bring the watch to the blue boat." Mara wound the watch once. For the first time in years, its second hand moved.
+
+At the pier, an old sailor waited beside a boat painted the color of deep water. He took the watch gently and listened. As the town clock began its twelve slow notes, the pocket watch chimed too. The sailor smiled, looking suddenly younger, and placed a small compass in Mara's hand.
+
+"Your grandfather promised I would find my way home," he said. The fog opened like a curtain. The blue boat sailed into the silver passage and disappeared before the final bell faded.
+
+In the morning, Mara hung the compass above the workbench. From then on, every repaired clock left her shop ticking toward somewhere its owner needed to be.</pre>
+        </details>
+        <details>
+          <summary>中文 <span class="story-meta">381 字符 / 1,123 bytes</span></summary>
+          <pre class="story">港口的钟
+
+每天傍晚，渔夫们回家以后，玛拉都会打开那间小小的钟表店。店铺原本属于她的祖父；工作台上还留着祖父没修完的一件东西：一只黄铜怀表，它始终不肯越过十一点五十九分。
+
+一个雨夜，一封信从门缝下滑了进来。信上写着：“港口大钟敲响十二点时，把怀表带到蓝色小船旁。”玛拉给怀表上了一次发条。许多年来，它的秒针第一次走动起来。
+
+在码头边，一位老水手正在一艘深水颜色的小船旁等候。他轻轻接过怀表，侧耳倾听。镇上的大钟开始敲出十二声缓慢的钟鸣时，那只怀表也响了。水手露出微笑，看起来忽然年轻了许多，然后把一枚小罗盘放进玛拉手中。
+
+“你祖父答应过我，我会找到回家的路。”他说。浓雾像幕布一样分开，蓝色小船驶入银色的通道，在最后一声钟鸣消散以前便不见了。
+
+第二天早晨，玛拉把罗盘挂在工作台上方。从那以后，每一只修好后离开店铺的钟，都滴答滴答地走向主人需要抵达的地方。</pre>
+        </details>
+      </div>
+    </section>
+
     <section id="charts">
       <h2>实际编码表现</h2>
       <div class="charts">
@@ -379,6 +503,56 @@
           <p class="delta">Grok-2 公开基线与 Cohere 并列第一（<strong>4.86</strong>），最末的 ERNIE 为 <strong>4.44</strong>，差距不足中文分化幅度。</p>
         </article>
       </div>
+    </section>
+
+    <section id="why">
+      <h2>为什么有些 Tokenizer 的中文表现更好？</h2>
+      <p class="chart-note">以下解释来自本次中文文本的逐 token 切片统计。样本共有 332 个汉字；“多汉字覆盖率”指落在长度至少为 2 个汉字的 token 中的汉字占比。</p>
+      <div class="reason-grid">
+        <article class="reason">
+          <h3>Kimi K2.6：高密度合并常见汉语片段</h3>
+          <div class="metric">75.3%</div>
+          <p>250 / 332 个汉字由多汉字 token 覆盖，出现 114 个多汉字片段，是本样本中覆盖最强的一项。</p>
+          <p>可见切片包括 <code>每天</code>、<code>傍晚</code>、<code>渔夫</code>、<code>回家</code>、<code>都会</code>。其官方 K2.6 tokenizer pattern 先识别连续汉字片段，实际合并由公开 <code>tiktoken.model</code> 词表决定。</p>
+        </article>
+        <article class="reason">
+          <h3>MiniMax M2.7：将标点语境一起压缩</h3>
+          <div class="metric">243 tokens</div>
+          <p>多汉字覆盖率为 61.7%，低于 DeepSeek / Qwen，却取得第二名，说明优势不只来自汉字词组。</p>
+          <p>它生成 18 个汉字与标点混合片段，例如 <code>，它</code>、<code>。许多</code>、<code>“你</code>；不含汉字的 token 仅 19 个，而 DeepSeek 为 37 个。</p>
+        </article>
+        <article class="reason">
+          <h3>DeepSeek / Qwen / Hy3：稳定的多字覆盖</h3>
+          <div class="metric">1.48-1.49</div>
+          <p>三者中文均在 256-257 tokens：DeepSeek 多汉字覆盖率 64.8%，Qwen 66.3%，Hy3 为 64.5%。</p>
+          <p>它们持续将 <code>每天</code>、<code>傍晚</code>、<code>都会</code>、<code>小小的</code> 等叙事常见序列编码成更少片段，因此在本样本中明显领先 OpenAI <code>o200k_base</code> 公开基线。</p>
+        </article>
+      </div>
+      <article class="panel">
+        <h3>切片证据对比</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tokenizer</th>
+                <th class="num">中文 tokens</th>
+                <th class="num">多汉字覆盖数</th>
+                <th class="num">多汉字覆盖率</th>
+                <th>从样本观察到的倾向</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="highlight"><td>Kimi K2.6</td><td class="num">233</td><td class="num">250</td><td class="num">75.3%</td><td>二至四字片段最密集</td></tr>
+              <tr><td>MiniMax M2.7</td><td class="num">243</td><td class="num">205</td><td class="num">61.7%</td><td>标点与邻接文字的联合片段较多</td></tr>
+              <tr><td>Qwen3.6 27B</td><td class="num">256</td><td class="num">220</td><td class="num">66.3%</td><td>常用多字序列覆盖稳定</td></tr>
+              <tr><td>DeepSeek V4 Pro</td><td class="num">256</td><td class="num">215</td><td class="num">64.8%</td><td>常用多字序列覆盖稳定</td></tr>
+              <tr><td>OpenAI o200k_base（基线）</td><td class="num">324</td><td class="num">75</td><td class="num">22.6%</td><td>本样本多数汉字拆得更细</td></tr>
+              <tr><td>Mistral Medium 3.5</td><td class="num">376</td><td class="num">67</td><td class="num">20.2%</td><td>本样本接近逐字编码</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="evidence-note"><strong>解释边界：</strong>可以从切片直接证明的是，领先项更频繁地把本篇小说中的中文短语或中文标点语境压缩到单个 token。可以合理推断其词表构建对中文常见序列给予了更多容量；但本结果不能证明训练数据组成、模型中文能力或任意领域文本上的固定排名。英文差距较小，则说明这组 tokenizer 对拉丁字母词与英文标点序列的覆盖已经相对接近。</div>
+      </article>
     </section>
 
     <section id="verified" class="panel">
@@ -448,6 +622,10 @@
     </section>
 
     <section>
+      <div class="callout"><strong>本地词表工件：</strong>已下载的官方 tokenizer 文件按模型名收录在 <a href="vocabularies/README.md"><code>vocabularies/</code></a>，并附带 SHA-256 校验清单。GPT-5.5、Claude、Gemini 与 Grok 4.3 的当前入口依赖官方 API，Llama 4 工件受许可限制。</div>
+    </section>
+
+    <section>
       <div class="callout"><strong>实践建议：</strong>成本估算应固定实际模型 id，并使用业务真实语料分别测试中文、英文与混合文本。对 RAG 或长上下文服务，中文 tokenizer 的 20%–30% token 差异可直接转化为容量与费用差异。</div>
     </section>
 
@@ -476,7 +654,7 @@
 
   <footer>
     <div class="frame">
-      基于 <a href="TOKENIZER_ANALYSIS.md">TOKENIZER_ANALYSIS.md</a> 制作 · 查看逐 token 彩色切片报告：
+      查看本页收录的版本核验、效率分析与逐 token 彩色切片报告：
       <a href="reports/latest-verified.html">reports/latest-verified.html</a>
     </div>
   </footer>
