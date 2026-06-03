@@ -33,6 +33,7 @@ O200K_PAT_STR = (
 
 
 DEFAULT_TEXT = "雾港灯塔准时亮起。The lighthouse turned on at exactly midnight."
+DECODED_PREVIEW_CHARS = 20
 
 
 def die_missing(package: str) -> None:
@@ -115,6 +116,12 @@ def format_ids(ids: Iterable[int], limit: int) -> str:
     return ", ".join(str(item) for item in shown) + suffix
 
 
+def preview_text(text: str, limit: int = DECODED_PREVIEW_CHARS) -> str:
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "..."
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Encode and decode text with a local tokenizer vocab file.")
     parser.add_argument(
@@ -167,7 +174,7 @@ def main() -> int:
     print(repr(pieces[: args.show]) + ("" if len(pieces) <= args.show else f" ... (+{len(pieces) - args.show} more)"))
     print()
     print("Decoded text:")
-    print(decoded)
+    print(preview_text(decoded))
 
     return 0
 
