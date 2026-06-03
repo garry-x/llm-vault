@@ -1,0 +1,2 @@
+tokenizers>=0.20.0
+tiktoken>=0.7.0
