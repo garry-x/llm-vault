@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LLM 分词器调研 | BPE 变种与模型使用</title>
+  <style>
+    :root {
+      --ink: #17211f;
+      --muted: #5e6b67;
+      --paper: #f7f3ea;
+      --panel: #fffdf8;
+      --line: #ddd5c8;
+      --green: #14715d;
+      --green-soft: #dcebe5;
+      --blue: #315f88;
+      --blue-soft: #dbe8f2;
+      --amber: #a96818;
+      --amber-soft: #f2dfbd;
+      --red: #9c4e43;
+      --red-soft: #ead5d1;
+      --shadow: 0 14px 40px rgba(23, 33, 31, .07);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: linear-gradient(115deg, #efe8d9 0%, var(--paper) 38%, #fbf8f0 100%);
+      font-family: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+    }
+    a { color: var(--green); text-decoration-color: rgba(20, 113, 93, .32); }
+    code {
+      font-family: "SFMono-Regular", "Cascadia Code", Consolas, monospace;
+      background: #eee7d8;
+      border-radius: 5px;
+      padding: .12em .36em;
+      font-size: .92em;
+    }
+    .frame { width: min(1180px, calc(100% - 44px)); margin: 0 auto; }
+    header { padding: 58px 0 32px; border-bottom: 1px solid var(--line); }
+    .eyebrow {
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 14px 0 16px;
+      max-width: 880px;
+      font-family: "Songti SC", "Noto Serif SC", Georgia, serif;
+      font-size: clamp(36px, 5.4vw, 62px);
+      line-height: 1.12;
+      letter-spacing: -.03em;
+    }
+    .lede { max-width: 830px; color: var(--muted); line-height: 1.75; font-size: 16px; }
+    .stamp { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 253, 248, .7);
+      color: var(--muted);
+      padding: 8px 13px;
+      font-size: 13px;
+    }
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: rgba(247, 243, 234, .92);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(14px);
+    }
+    nav .frame { display: flex; gap: 22px; overflow-x: auto; padding: 13px 0; white-space: nowrap; }
+    nav a { color: var(--muted); text-decoration: none; font-size: 14px; }
+    nav a:hover { color: var(--green); }
+    main { padding: 34px 0 72px; }
+    section { margin-bottom: 42px; }
+    h2 {
+      margin: 0 0 18px;
+      font-family: "Songti SC", "Noto Serif SC", Georgia, serif;
+      font-size: 25px;
+      letter-spacing: -.02em;
+    }
+    h3 { margin: 0 0 10px; font-size: 17px; }
+    p { line-height: 1.68; }
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .kpi, .panel, .card, .callout {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+    }
+    .kpi { padding: 20px; }
+    .kpi span { color: var(--muted); font-size: 13px; }
+    .kpi strong { display: block; color: var(--green); font-size: 34px; line-height: 1; margin: 8px 0; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .panel, .card { padding: 22px; }
+    .panel p, .card p { color: var(--muted); margin: 0 0 12px; }
+    .tag-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+    .tag {
+      display: inline-block;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #f3eedf;
+      padding: 5px 8px;
+      color: #40524e;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .tag.green { color: #0f604f; background: var(--green-soft); border-color: #c3dbd3; }
+    .tag.blue { color: #294f74; background: var(--blue-soft); border-color: #c8d8e6; }
+    .tag.amber { color: #795016; background: var(--amber-soft); border-color: #e4cca2; }
+    .tag.red { color: #814237; background: var(--red-soft); border-color: #ddc2bd; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th {
+      text-align: left;
+      color: var(--muted);
+      font-weight: 650;
+      padding: 0 13px 12px 0;
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+    td {
+      vertical-align: top;
+      padding: 13px 13px 13px 0;
+      border-bottom: 1px solid #ece5d8;
+      line-height: 1.55;
+    }
+    td small { display: block; color: var(--muted); line-height: 1.5; margin-top: 4px; }
+    .note {
+      margin: -6px 0 17px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+    }
+    .step {
+      border: 1px solid var(--line);
+      background: #fffaf0;
+      border-radius: 10px;
+      padding: 15px;
+      min-height: 118px;
+    }
+    .step strong { display: block; margin-bottom: 8px; color: var(--green); }
+    .step p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .callout {
+      border-left: 4px solid var(--amber);
+      padding: 19px 22px;
+      color: var(--muted);
+      line-height: 1.68;
+    }
+    .sources {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px 18px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      font-size: 13px;
+    }
+    .sources li { border-bottom: 1px solid #ece5d8; padding: 9px 0; }
+    footer { border-top: 1px solid var(--line); padding: 24px 0 46px; color: var(--muted); font-size: 13px; }
+    @media (max-width: 920px) {
+      .kpis, .grid-2, .grid-3 { grid-template-columns: 1fr 1fr; }
+      .flow { grid-template-columns: 1fr 1fr; }
+      .sources { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .frame { width: min(100% - 28px, 1180px); }
+      header { padding-top: 38px; }
+      .kpis, .grid-2, .grid-3, .flow { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="frame">
+      <div class="eyebrow">LLM Tokenizer Survey / 2026-06-03</div>
+      <h1>当前 LLM 分词器：最新模型、BPE 变种与非 BPE 路线</h1>
+      <p class="lede">LLM 的 tokenizer 本质上决定了文本如何进入 embedding 表，也决定了上下文、计费和推理长度的实际口径。截至 2026-06-03，最新主流模型包括 GPT-5.5、Claude Opus 4.8、Gemini 3.5、DeepSeek V4、Qwen3.6、Kimi K2.6、MiniMax M2.7 等；它们仍以 BPE 系列或闭源 tokenizer 为主，但实现形态已经分化为 SentencePiece BPE、byte-level BPE、tiktoken BPE、Tekken 和厂商专用编码流程。</p>
+      <div class="stamp">
+        <span class="pill">调研对象：2026-06-03 最新主流模型与常见基线</span>
+        <span class="pill">重点：算法类型，不比较模型能力</span>
+        <span class="pill">闭源模型只标注官方公开到的计数/实现信息</span>
+      </div>
+    </div>
+  </header>
+
+  <nav>
+    <div class="frame">
+      <a href="#summary">速览</a>
+      <a href="#bpe">BPE 变种</a>
+      <a href="#models">模型映射</a>
+      <a href="#non-bpe">非 BPE</a>
+      <a href="#pipeline">实现差异</a>
+      <a href="#takeaways">结论</a>
+      <a href="#sources">来源</a>
+    </div>
+  </nav>
+
+  <main class="frame">
+    <section id="summary">
+      <div class="kpis">
+        <article class="kpi"><span>主流路线</span><strong>BPE</strong><span>OpenAI、Llama、Qwen、DeepSeek、Mistral 等</span></article>
+        <article class="kpi"><span>常见非 BPE</span><strong>Unigram</strong><span>SentencePiece Unigram，T5/Gemma 系列常见</span></article>
+        <article class="kpi"><span>旧但重要</span><strong>WordPiece</strong><span>BERT/DeBERTa 等编码器模型</span></article>
+        <article class="kpi"><span>最新闭源</span><strong>API</strong><span>Claude/Gemini 精确口径依赖官方计数接口</span></article>
+      </div>
+    </section>
+
+    <section class="grid-2">
+      <article class="panel">
+        <h2>一句话结论</h2>
+        <p>如果只看当前通用生成式 LLM，BPE 仍是默认选择；OpenAI、Qwen、DeepSeek、Mistral、Llama 的公开模型基本都落在 BPE 家族。闭源模型如 Claude Opus 4.8 与 Gemini 3.5 则必须以官方 token counting API 为准。</p>
+        <p>“BPE”不是单一实现。真实 tokenizer 还包括 Unicode 归一化、正则预切分、空格处理、byte fallback、特殊 token、chat template 和多模态占位 token。两个模型同称 BPE，也不能混用 token id。</p>
+      </article>
+      <article class="panel">
+        <h2>使用判断</h2>
+        <p>做分词测试时，应优先使用模型随附的 tokenizer 文件或官方 token counting API。对闭源模型，不要用 OpenAI 的 <code>o200k_base</code> 去估算 Claude/Gemini 的真实账单，除非只做粗略对比。</p>
+        <div class="tag-row">
+          <span class="tag green">模型绑定</span>
+          <span class="tag blue">词表不可混用</span>
+          <span class="tag amber">chat template 会额外加 token</span>
+          <span class="tag red">闭源 tokenizer 常不公开</span>
+        </div>
+      </article>
+    </section>
+
+    <section id="bpe">
+      <h2>BPE 及其主要变种</h2>
+      <p class="note">BPE 的共同点是从小单位出发，按训练语料中的高频相邻片段逐步合并，最终得到固定词表。差异主要来自初始单位、预切分方式、空格处理和 OOV 兜底策略。</p>
+      <div class="table-wrap panel">
+        <table>
+          <thead>
+            <tr>
+              <th>类型</th>
+              <th>核心特征</th>
+              <th>常见模型/家族</th>
+              <th>适用与注意点</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>经典 BPE / subword BPE</strong></td>
+              <td>从字符或 Unicode 片段开始训练合并表；常需处理空格、归一化和未知字符。</td>
+              <td>LLaMA 1/2、早期 Mistral/Mixtral 常见为 SentencePiece BPE 风格；许多开源 LLM 也沿用。</td>
+              <td>实现简单、推理快；低资源语言和罕见字符可能切得很碎。</td>
+            </tr>
+            <tr>
+              <td><strong>Byte-level BPE / BBPE</strong></td>
+              <td>初始单位是 UTF-8 byte，天然覆盖全部 Unicode，通常不需要 <code>&lt;unk&gt;</code>。</td>
+              <td>GPT-2/GPT-3 路线、OpenAI tiktoken 基础思想、DeepSeek V3/V4 路线、Qwen3/Qwen3.6 技术报告标注的 BBPE。</td>
+              <td>鲁棒性强；对中日韩、Indic 等多字节文字，词表训练质量直接影响压缩率。</td>
+            </tr>
+            <tr>
+              <td><strong>语言/文字系统定向 BBPE</strong></td>
+              <td>仍是 byte-level BPE，但训练语料和词表预算刻意面向某些文字系统或领域优化。</td>
+              <td>2026 年 BrahmicTokenizer-131K 面向 Indic/Brahmic 文字，定位为 <code>o200k_base</code> 的 131K 级替代。</td>
+              <td>适合作为多语压缩研究对照；不是 GPT/Claude/Gemini 的官方 tokenizer。</td>
+            </tr>
+            <tr>
+              <td><strong>tiktoken BPE</strong></td>
+              <td>OpenAI 的高性能 BPE 实现，使用正则预切分、ranked mergeable ranks 和特殊 token 表。</td>
+              <td>OpenAI GPT-4o、o 系列、GPT-5.x/GPT-5.5 系列通常按 <code>o200k_base</code> 预算；GPT-oss 使用扩展的 <code>o200k_harmony</code>；Llama 3 使用 128K 词表并借鉴 tiktoken 路线。</td>
+              <td>适合 API 计数和高吞吐编码；不同 encoding 的正则和词表都可能不同。</td>
+            </tr>
+            <tr>
+              <td><strong>SentencePiece BPE</strong></td>
+              <td>SentencePiece 框架内的 BPE 模式，直接从原始文本训练，可把空格编码为可见边界符。</td>
+              <td>LLaMA 1/2、Mistral v1/v2、许多多语开源模型。</td>
+              <td>语言无关、无需外部分词；注意 SentencePiece 同时也支持 Unigram，不能把 SentencePiece 等同于 BPE。</td>
+            </tr>
+            <tr>
+              <td><strong>BPE + byte fallback</strong></td>
+              <td>主词表无法覆盖时退回 byte token，避免未知字符。</td>
+              <td>Mistral 7B / Mixtral 的 Hugging Face 文档说明其 tokenizer 带 byte fallback；很多现代 tokenizer 都有类似兜底。</td>
+              <td>提升鲁棒性，尤其适合代码、emoji、罕见符号；fallback 多时序列会变长。</td>
+            </tr>
+            <tr>
+              <td><strong>Tekken</strong></td>
+              <td>Mistral 新 tokenizer，官方说明为基于 tiktoken 的 BPE，训练覆盖 100+ 语言，相比旧 SentencePiece tokenizer 更高效。</td>
+              <td>Mistral Nemo、Pixtral、Ministral 等 V3-Tekken 系列。</td>
+              <td>工程上属于 BPE 变种，不是新的基础分词算法；需用 Mistral 官方 tokenizer 包或模型配置。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="models">
+      <h2>最新模型/家族映射</h2>
+      <p class="note">表中“公开程度”区分可下载 tokenizer、官方源码/文档、或只能通过 API 计数。闭源供应商可能随模型版本调整 tokenizer；以下按 2026-06-03 可核验的最新公开信息整理。</p>
+      <div class="table-wrap panel">
+        <table>
+          <thead>
+            <tr>
+              <th>模型/家族</th>
+              <th>Tokenizer 类型</th>
+              <th>公开程度</th>
+              <th>备注</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>OpenAI GPT-5.5 / GPT-5.5 Pro / GPT-5.5 Instant</strong></td>
+              <td>tiktoken BPE；公开预算通常按 GPT-5 系列的 <code>o200k_base</code> 路线处理</td>
+              <td>tiktoken 开源；具体 API 模型映射以 OpenAI 平台/库为准</td>
+              <td>GPT-5.5 于 2026-04-23 发布，2026-04-24 进入 API；闭环工具使用、reasoning token 和 chat/template 开销需按 Responses API 计数。</td>
+            </tr>
+            <tr>
+              <td><strong>OpenAI GPT-oss-120b / GPT-oss-20b</strong></td>
+              <td><code>o200k_harmony</code>，扩展自 <code>o200k</code> 的 tiktoken BPE</td>
+              <td>开源 tokenizer 与模型卡公开</td>
+              <td>包含 harmony/control token，不能用纯 <code>o200k_base</code> 完整替代 chat 格式计数。</td>
+            </tr>
+            <tr>
+              <td><strong>Meta Llama 1/2</strong></td>
+              <td>SentencePiece BPE 风格，约 32K 词表</td>
+              <td>随模型发布 tokenizer</td>
+              <td>大量派生模型直接继承该 tokenizer。</td>
+            </tr>
+            <tr>
+              <td><strong>Meta Llama 3/3.1/3.2/4</strong></td>
+              <td>大词表 BPE/tiktoken 风格，128K 词表</td>
+              <td>随模型发布 tokenizer；Meta 公开 128K 词表信息，Llama 4 以具体仓库 tokenizer 为准</td>
+              <td>Llama 4 已是当前 Llama 主线；tokenizer 仍需从具体模型仓库读取，不要假设与 Llama 3 完全相同。</td>
+            </tr>
+            <tr>
+              <td><strong>Mistral 3 / Mistral Medium 3.5 / Mistral Large 3</strong></td>
+              <td>Mistral V3/Tekken 与 sentencepiece 版本并存；具体取决于模型发布包</td>
+              <td>Mistral 文档公开 tokenizer 版本表；模型仓库提供实际 tokenizer</td>
+              <td>新 Mistral 模型已进入 2025-2026 的 Mistral 3/Medium 3.x 时代；不要只按 Mistral 7B/Mixtral 旧表推断。</td>
+            </tr>
+            <tr>
+              <td><strong>Mistral Nemo / Pixtral / Ministral</strong></td>
+              <td>Tekken：基于 tiktoken 的 BPE</td>
+              <td>Mistral 文档公开</td>
+              <td>官方称相比旧 SentencePiece tokenizer，在自然语言和代码上压缩更好。</td>
+            </tr>
+            <tr>
+              <td><strong>Qwen3.6 / Qwen3.5 / Qwen3</strong></td>
+              <td>byte-level BPE / BBPE，tiktoken 实现路线</td>
+              <td>开源模型 tokenizer 可下载；Qwen3 技术报告标注 BBPE</td>
+              <td>Qwen3.6 是当前 Qwen 开源/API 主线之一；仍沿用 Qwen 151K 级别 BBPE 路线，具体 vocab/special tokens 以模型仓库为准。</td>
+            </tr>
+            <tr>
+              <td><strong>DeepSeek V4-Pro / V4-Flash</strong></td>
+              <td>DeepSeek 自有 fast tokenizer；V3 技术报告为 byte-level BPE，V4 仓库提供 tokenizer 与 encoding 脚本</td>
+              <td>DeepSeek V4 官方开源权重；HF <code>tokenizer_config.json</code> 标注 <code>model_max_length=1048576</code></td>
+              <td>DeepSeek 已进入 V4 Preview 主线，V3.2 应作为历史/继承参考；V4 chat 不只靠 Jinja template，仓库提供 OpenAI-compatible message encoding 脚本。</td>
+            </tr>
+            <tr>
+              <td><strong>Moonshot Kimi K2.6</strong></td>
+              <td>模型仓库 tokenizer；Kimi/K2 路线在本地测试中表现为大词表 BPE/tiktoken 风格</td>
+              <td>Kimi API 文档与 Hugging Face 权重公开；具体 tokenizer 以 <code>moonshotai/Kimi-K2.6</code> 仓库为准</td>
+              <td>Kimi K2.6 是 2026-04 后的 Kimi 主线，256K context，支持文本、图像、视频输入；K2 旧系列 2026-05-25 后停止维护。</td>
+            </tr>
+            <tr>
+              <td><strong>MiniMax M2.7</strong></td>
+              <td>模型仓库 tokenizer；公开资料未把算法细节完全标准化为某一 BPE 子类</td>
+              <td>API/合作平台与模型资料公开；本地测试应读取官方 tokenizer JSON</td>
+              <td>MiniMax M2.7 为 2026 年 agentic/coding 主线之一，200K context；不要用 OpenAI/Qwen tokenizer 代算真实费用。</td>
+            </tr>
+            <tr>
+              <td><strong>Google Gemini 3.5</strong></td>
+              <td>闭源 Gemini tokenizer；官方提供 <code>countTokens</code></td>
+              <td>主要通过 Gemini API 计数</td>
+              <td>Gemini 3.5 于 2026-05 发布；Gemma/Gemini 相关但不能把 Gemma SentencePiece 直接当作 Gemini 账单口径。</td>
+            </tr>
+            <tr>
+              <td><strong>Google Gemma / Gemma 2/3</strong></td>
+              <td>SentencePiece；Gemma 2 论文说明 256K 词表</td>
+              <td>开放模型可下载；Google/Keras 文档说明基于 SentencePiece</td>
+              <td>具体 SentencePiece 子算法需看模型文件；通常作为大词表多语 tokenizer 代表。</td>
+            </tr>
+            <tr>
+              <td><strong>Anthropic Claude Opus 4.8 / Opus 4.7 / Sonnet 4.6</strong></td>
+              <td>闭源 tokenizer</td>
+              <td>官方提供 <code>/v1/messages/count_tokens</code></td>
+              <td>Claude Opus 4.8 是 2026-05 最新 Opus 发布；算法/词表未完整公开，精确计费与上下文测试必须使用 Anthropic API。</td>
+            </tr>
+            <tr>
+              <td><strong>BERT / DeBERTa 等编码器基线</strong></td>
+              <td>WordPiece</td>
+              <td>模型 tokenizer 可下载</td>
+              <td>不是当前通用生成式 LLM 的主流路线，但在 embedding、分类、检索基线中仍常见。</td>
+            </tr>
+            <tr>
+              <td><strong>T5 / mT5 / UL2 / ByT5</strong></td>
+              <td>T5/mT5 多为 SentencePiece Unigram；ByT5 为 byte-level/token-free</td>
+              <td>开源模型 tokenizer 可下载</td>
+              <td>T5 生态是非 BPE 路线的重要对照组。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="non-bpe">
+      <h2>有没有使用其他类型算法？有</h2>
+      <div class="grid-3">
+        <article class="card">
+          <h3>Unigram Language Model</h3>
+          <p>从较大的候选子词集合开始，用概率模型和剪枝得到目标词表，编码时可用 Viterbi 选择最可能切分。</p>
+          <div class="tag-row">
+            <span class="tag green">SentencePiece</span>
+            <span class="tag blue">T5 / mT5</span>
+            <span class="tag blue">Gemma 常见归类</span>
+          </div>
+        </article>
+        <article class="card">
+          <h3>WordPiece</h3>
+          <p>与 BPE 类似也是子词词表，但训练目标更偏似然/概率增益，典型符号是 <code>##</code> continuation。</p>
+          <div class="tag-row">
+            <span class="tag amber">BERT</span>
+            <span class="tag amber">DeBERTa</span>
+            <span class="tag amber">早期 encoder</span>
+          </div>
+        </article>
+        <article class="card">
+          <h3>字节/字符级与 tokenizer-free</h3>
+          <p>绕开固定子词词表，直接处理 UTF-8 byte 或 Unicode character，或把 byte 动态聚合为 patch。</p>
+          <div class="tag-row">
+            <span class="tag red">ByT5</span>
+            <span class="tag red">CANINE</span>
+            <span class="tag red">BLT</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="pipeline">
+      <h2>同叫 BPE，为什么不能混用？</h2>
+      <div class="flow">
+        <div class="step">
+          <strong>1. 归一化</strong>
+          <p>NFKC、大小写、特殊空白和控制字符处理不同，会改变输入序列。</p>
+        </div>
+        <div class="step">
+          <strong>2. 预切分</strong>
+          <p>tiktoken 使用正则把文本先切成片段；SentencePiece 更强调 raw text 训练。</p>
+        </div>
+        <div class="step">
+          <strong>3. 初始单位</strong>
+          <p>字符、Unicode 片段、UTF-8 byte 的选择决定 OOV 行为和多语压缩率。</p>
+        </div>
+        <div class="step">
+          <strong>4. 合并表</strong>
+          <p>merge rank 来自训练语料；中文、代码、数学、emoji 的覆盖取决于语料分布。</p>
+        </div>
+        <div class="step">
+          <strong>5. 特殊 token</strong>
+          <p>BOS/EOS、role、tool、image、audio、reasoning token 会改变真实上下文消耗。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="takeaways">
+      <h2>测试与选型结论</h2>
+      <div class="callout">
+        <strong>用于本仓库后续分词测试时：</strong>同一文本应分别用每个模型自己的 tokenizer 编码；记录纯文本 token 数、套用 chat template 后的 token 数，以及 reasoning/tool/multimodal wrapper 的额外开销。DeepSeek V4 这类模型还要按仓库 encoding 脚本生成 prompt 后再编码。BPE 系列可作为主线，Unigram、WordPiece、byte-level/tokenizer-free 可作为对照组。
+      </div>
+    </section>
+
+    <section id="sources">
+      <h2>来源与参考</h2>
+      <ul class="sources">
+        <li><a href="https://github.com/openai/tiktoken">OpenAI tiktoken：fast BPE tokeniser for OpenAI models</a></li>
+        <li><a href="https://openai.com/index/introducing-gpt-5-5/">OpenAI：Introducing GPT-5.5，2026-04-23 发布，API 于 2026-04-24 可用</a></li>
+        <li><a href="https://openai.com/index/gpt-5-5-system-card/">OpenAI GPT-5.5 System Card</a></li>
+        <li><a href="https://cdn.openai.com/pdf/419b6906-9da6-406c-a19d-1bb078ac7637/oai_gpt-oss_model_card.pdf">OpenAI gpt-oss model card：o200k 扩展 BPE 与 harmony token</a></li>
+        <li><a href="https://ai.meta.com/blog/meta-llama-3/">Meta Llama 3 blog：128K tokenizer 与 token efficiency</a></li>
+        <li><a href="https://docs.mistral.ai/cookbooks/concept-deep-dive-tokenization-templates">Mistral tokenization docs：SentencePiece 与 Tekken 版本表</a></li>
+        <li><a href="https://docs.mistral.ai/resources/cookbooks/concept-deep-dive-tokenization-readme">Mistral Tokenization readme：V3-Tekken 基于 tiktoken</a></li>
+        <li><a href="https://mistral.ai/fr/news/mistral-3/">Mistral 3 release：Mistral Large 3 与新一代模型线</a></li>
+        <li><a href="https://github.com/google/sentencepiece">SentencePiece：支持 BPE 与 Unigram，直接从 raw sentences 训练</a></li>
+        <li><a href="https://arxiv.org/abs/1808.06226">SentencePiece paper, Kudo & Richardson, 2018</a></li>
+        <li><a href="https://api-docs.deepseek.com/news/news260424">DeepSeek V4 Preview Release：V4-Pro/V4-Flash、1M context、开源权重</a></li>
+        <li><a href="https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro">DeepSeek-V4-Pro Hugging Face：tokenizer 与 encoding 脚本说明</a></li>
+        <li><a href="https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro/blob/main/tokenizer_config.json">DeepSeek-V4-Pro tokenizer_config.json：model_max_length=1048576</a></li>
+        <li><a href="https://huggingface.co/deepseek-ai/DeepSeek-V3">DeepSeek-V3 Hugging Face model card 与技术报告链接</a></li>
+        <li><a href="https://github.com/QwenLM/Qwen3.6/blob/main/README.md">Qwen3.6 GitHub：最新 Qwen3.6 / Qwen3.5 模型仓库</a></li>
+        <li><a href="https://www.usionmedia.com/docs/qwen3_technical_report.html/attachment/qwen3_technical_report">Qwen3 Technical Report：BBPE 与 151K 级词表</a></li>
+        <li><a href="https://platform.kimi.ai/docs/models">Kimi API Model List：kimi-k2.6，256K context</a></li>
+        <li><a href="https://huggingface.co/moonshotai/Kimi-K2.6">moonshotai/Kimi-K2.6 Hugging Face model card</a></li>
+        <li><a href="https://developer.nvidia.com/blog/minimax-m2-7-advances-scalable-agentic-workflows-on-nvidia-platforms-for-complex-ai-applications/">NVIDIA Technical Blog：MiniMax M2.7，230B MoE、200K context</a></li>
+        <li><a href="https://keras.io/keras_hub/api/models/gemma/gemma_tokenizer/">Keras GemmaTokenizer：基于 SentencePieceTokenizer</a></li>
+        <li><a href="https://arxiv.org/abs/2408.00118">Gemma 2 paper：SentencePiece tokenizer 与 256K vocabulary</a></li>
+        <li><a href="https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-3-5/">Google：Gemini 3.5 release</a></li>
+        <li><a href="https://platform.claude.com/docs/claude/reference/overview">Anthropic Claude API overview：Token Counting API</a></li>
+        <li><a href="https://www.anthropic.com/news/claude-opus-4-8">Anthropic：Introducing Claude Opus 4.8</a></li>
+        <li><a href="https://www.anthropic.com/news/claude-opus-4-7">Anthropic：Introducing Claude Opus 4.7</a></li>
+        <li><a href="https://ai.google.dev/gemini-api/docs/tokens">Google Gemini API：countTokens 与 tokenization 说明</a></li>
+        <li><a href="https://arxiv.org/abs/2605.29379">BrahmicTokenizer-131K：面向 Indic 的 o200k_base 替代型 byte-level BPE</a></li>
+        <li><a href="https://github.com/google-research/byt5">ByT5：tokenizer-free byte-to-byte T5</a></li>
+        <li><a href="https://research.google/pubs/canine-pre-training-an-efficient-tokenization-free-encoder-for-language-understanding/">CANINE：tokenization-free character-level encoder</a></li>
+        <li><a href="https://arxiv.org/abs/2412.09871">Byte Latent Transformer：byte-level tokenizer-free LLM architecture</a></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <div class="frame">刷新日期：2026-06-03。闭源模型 tokenizer 信息以官方计数接口和公开文档为准；具体开源模型请优先读取随模型发布的 tokenizer 配置、chat template 和 encoding 脚本。</div>
+  </footer>
+</body>
+</html>
