@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>头部大模型所用 Embedding 与表示技术深度调研</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --paper: #ffffff;
+      --ink: #172033;
+      --muted: #607086;
+      --line: #d9e0ea;
+      --accent: #0f766e;
+      --accent-soft: #eef8f6;
+      --warn: #92400e;
+      --warn-soft: #fff7ed;
+      --code: #111827;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 16px/1.72 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Microsoft YaHei", sans-serif;
+    }
+
+    main {
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+
+    article {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 44px;
+      box-shadow: 0 10px 28px rgba(31, 41, 55, 0.06);
+    }
+
+    h1, h2, h3 { line-height: 1.25; margin: 0; color: #111827; }
+    h1 { font-size: clamp(2rem, 4vw, 3.1rem); max-width: 930px; }
+    h2 { margin-top: 42px; padding-top: 28px; border-top: 1px solid var(--line); font-size: 1.65rem; }
+    h3 { margin-top: 24px; font-size: 1.15rem; }
+    p { margin: 12px 0; }
+    a { color: #0f5f59; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    ul, ol { padding-left: 1.35rem; }
+    li { margin: 8px 0; }
+
+    .meta {
+      margin-top: 18px;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 18px;
+      font-size: 0.95rem;
+    }
+
+    .lead {
+      margin-top: 28px;
+      padding: 22px 24px;
+      background: var(--accent-soft);
+      border-left: 4px solid var(--accent);
+      border-radius: 6px;
+      font-size: 1.06rem;
+    }
+
+    .note {
+      background: var(--warn-soft);
+      border-left: 4px solid var(--warn);
+      border-radius: 6px;
+      padding: 16px 18px;
+      color: #4b2e06;
+      margin: 18px 0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin: 20px 0;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      background: #fbfcfd;
+    }
+
+    .card h3 { margin-top: 0; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      margin: 0 6px 6px 0;
+      border: 1px solid #b7d8d4;
+      border-radius: 999px;
+      color: #075e56;
+      background: #effaf8;
+      font-size: 0.84rem;
+      white-space: nowrap;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0;
+      font-size: 0.94rem;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th { background: #f1f5f9; font-weight: 650; }
+    code {
+      background: #f3f4f6;
+      color: var(--code);
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.92em;
+    }
+
+    .small { color: var(--muted); font-size: 0.92rem; }
+    .refs li { overflow-wrap: anywhere; }
+
+    @media (max-width: 850px) {
+      article { padding: 28px 18px; }
+      .grid { grid-template-columns: 1fr; }
+      table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <article>
+      <h1>头部大模型所用 Embedding 与表示技术深度调研</h1>
+      <div class="meta">
+        <span>修订日期：2026-06-03</span>
+        <span>范围：GPT-4o、Gemini、Claude、Llama、DeepSeek、Qwen、Gemma 等头部模型</span>
+        <span>重点：模型内部表示，而非专用检索 embedding 模型排行榜</span>
+      </div>
+
+      <section class="lead">
+        <strong>核心结论：</strong>头部模型中的 embedding 技术，已经从“词表 id 查表得到 token 向量”扩展为一整套表示系统：
+        文本 token embedding、RoPE/多维 RoPE/时间对齐 RoPE、长上下文位置缩放、视觉 patch embedding、音频 codec 或声学特征 embedding、
+        视频时空 embedding、跨模态 projector、early fusion 统一 token 序列、MLA 的低秩 KV latent 表示、MoE router 表示，以及
+        外围 RAG 检索 embedding。专用 embedding 模型只是这套系统的一部分，不应和头部生成模型内部的 embedding 技术混为一谈。
+      </section>
+
+      <h2>1. 先澄清：这里的 Embedding 指什么</h2>
+      <p>
+        在大模型语境里，“embedding”至少有四层含义。上一版文档主要写的是第四层，因此偏离了目标。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>层级</th>
+            <th>含义</th>
+            <th>在头部模型中的作用</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>输入 token embedding</td>
+            <td>把文本 token id 映射为连续向量，通常与词表、tokenizer、输出 head 绑定。</td>
+            <td>语言模型的第一层语义表示，是后续 attention/MLP/MoE 的输入。</td>
+          </tr>
+          <tr>
+            <td>位置 embedding/位置编码</td>
+            <td>给 token 注入顺序、距离、二维空间、视频时间戳等位置信息。</td>
+            <td>决定长上下文、视觉布局、音视频同步、代码/表格结构理解能力。</td>
+          </tr>
+          <tr>
+            <td>跨模态 embedding</td>
+            <td>把图像 patch、音频帧、视频帧、OCR/布局信息投影到 LLM 可消费的 token 空间。</td>
+            <td>GPT-4o、Gemini、Llama 4、Qwen-Omni/VL 等原生或半原生多模态模型的关键。</td>
+          </tr>
+          <tr>
+            <td>检索 embedding</td>
+            <td>把 query/document 编成向量，用于 RAG、语义搜索、rerank。</td>
+            <td>多数情况下是外围系统能力，不是生成模型内部参数的一部分。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>2. 头部模型采用的表示技术总览</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>模型/系列</th>
+            <th>公开可确认的表示相关技术</th>
+            <th>对 embedding/表示系统的意义</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>DeepSeek-V3/R1</td>
+            <td>DeepSeekMoE、Multi-head Latent Attention (MLA)、RoPE 解耦、Multi-Token Prediction、FP8 训练。</td>
+            <td>重点不是检索 embedding，而是把 K/V 压缩为 latent 表示，降低长上下文推理时 KV cache 成本。</td>
+          </tr>
+          <tr>
+            <td>Llama 4</td>
+            <td>原生多模态、early fusion、文本与视觉 token 进入统一 backbone、MoE；Meta 还提到部分架构不再依赖传统位置 embedding。</td>
+            <td>代表开源权重模型从“外接视觉 encoder”转向更深层的统一 token 表示。</td>
+          </tr>
+          <tr>
+            <td>GPT-4 / GPT-4V</td>
+            <td>GPT-4 技术报告确认其为可接受图像和文本输入、输出文本的 multimodal model；GPT-4V 是 GPT-4 视觉能力集成项目。</td>
+            <td>公开资料证明 GPT 系列进入图文多模态阶段，但 GPT-4 报告明确不披露模型大小、具体架构、训练 compute 等细节。</td>
+          </tr>
+          <tr>
+            <td>GPT-4o / GPT-4.1 / GPT-5</td>
+            <td>GPT-4o 是端到端 text/vision/audio omni 模型；4o 原生图像生成是自回归并深度嵌入 omnimodal GPT-4o；GPT-4.1 支持 1M context；GPT-5 是带实时 router 的统一系统。</td>
+            <td>GPT 公开资料最有价值的是“多模态统一网络、原生生成、长上下文、系统级路由”的能力信号，而非可复现的 embedding 层细节。</td>
+          </tr>
+          <tr>
+            <td>Gemini 系列</td>
+            <td>原生多模态、长上下文、多语言/代码能力；Gemini Embedding 报告也说明 Gemini backbone 可迁移到通用表示任务。</td>
+            <td>体现 foundation model 表示能力可以服务生成、检索、分类、聚类等多种下游任务。</td>
+          </tr>
+          <tr>
+            <td>Qwen2.5-VL / Qwen2.5-Omni / Qwen3</td>
+            <td>MRoPE、多分辨率视觉位置编码、动态分辨率、动态 FPS；Omni 中有 TMRoPE 以对齐音视频时间。</td>
+            <td>Qwen 路线强调把空间、时间、多分辨率信息编码进可被 LLM 处理的位置表示。</td>
+          </tr>
+          <tr>
+            <td>Claude 3/3.5/4</td>
+            <td>公开资料确认强视觉、长上下文和多模态能力，但 Anthropic 很少披露底层 embedding 架构细节。</td>
+            <td>可作为能力参照，但不适合作为内部 embedding 技术细节的主要证据来源。</td>
+          </tr>
+          <tr>
+            <td>Gemma 3</td>
+            <td>开源实现显示其 vision-language backbone 会把图像 embedding 放入文本 embedding 序列对应位置；使用 RoPE 等机制。</td>
+            <td>适合观察开放模型中“视觉 encoder + projector + LLM 序列融合”的工程实现。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>3. GPT 系列公开资料能补充什么</h2>
+      <p>
+        OpenAI 对 GPT 系列的底层 embedding 细节披露很克制。GPT-4 技术报告确认 GPT-4 是大规模、多模态模型，
+        可接受图像和文本输入并输出文本；但报告也明确不提供进一步的架构、模型大小、硬件、训练 compute、数据构造和训练方法细节。
+        因此，对 GPT 的调研应把“官方确认的能力和系统描述”与“社区架构猜测”分开。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>公开资料</th>
+            <th>可确认内容</th>
+            <th>对 embedding/表示技术的启示</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>GPT-4 Technical Report / GPT-4V</td>
+            <td>GPT-4 是图文输入、文本输出的 multimodal model；GPT-4V 文档说明视觉能力是 GPT-4 多模态集成工作的一部分。</td>
+            <td>可以确认 GPT 进入图像+文本输入表示阶段，但不能确认视觉 encoder、projector、位置编码或融合层细节。</td>
+          </tr>
+          <tr>
+            <td>Hello GPT-4o / GPT-4o System Card</td>
+            <td>GPT-4o 可接受文本、音频、图像、视频组合输入，并生成文本、音频、图像输出；OpenAI 称其端到端跨文本、视觉、音频训练，输入输出由同一个神经网络处理。</td>
+            <td>这是 GPT 系列公开资料中最强的“统一多模态表示”证据：相比旧 Voice Mode 的 ASR→LLM→TTS 管线，4o 把音色、说话人、背景声等信息直接交给主模型处理。</td>
+          </tr>
+          <tr>
+            <td>GPT-4o Native Image Generation Addendum</td>
+            <td>4o 图像生成不同于 DALL-E 扩散模型，是自回归模型，并且原生嵌入 GPT-4o 的 omnimodal 架构深处。</td>
+            <td>这说明图像不只是外部工具输出，而是进入 GPT-4o 内部生成表示系统；文本渲染、图像编辑和多图变换都受主模型知识与指令理解影响。</td>
+          </tr>
+          <tr>
+            <td>GPT-4.1 发布资料</td>
+            <td>GPT-4.1/mini/nano 支持最高 1M tokens context，并在长上下文、多模态视频理解、代码和指令跟随上提升。</td>
+            <td>虽然未披露位置编码细节，但可以确认 GPT 路线在长上下文表示上投入明显，重点是“跨 1M 上下文可靠注意到相关信息、忽略干扰”。</td>
+          </tr>
+          <tr>
+            <td>GPT-5 System Card</td>
+            <td>GPT-5 被描述为统一系统，包含 fast/main 模型、thinking 模型和实时 router；router 根据复杂度、工具需求和用户意图选择模型。</td>
+            <td>这不是 embedding 层细节，但体现了头部模型从“单模型表示”走向“系统级表示与路由”：输入会先被系统判断任务类型，再进入不同能力路径。</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note">
+        写 GPT 时应避免使用未证实说法，例如具体 MoE 专家数、参数量、RoPE 方案、视觉 projector 结构等。
+        这些在公开官方资料中没有被确认，最多只能作为“社区传闻/推测”，不应写入正式技术调研的事实部分。
+      </div>
+
+      <h2>4. 文本 Token Embedding：从词表到 tied embedding</h2>
+      <p>
+        对 decoder-only LLM，第一步仍然是把离散 token id 通过 embedding matrix 映射为 hidden vector。
+        现代头部模型在这一层的重点不是“有没有 embedding”，而是词表设计、特殊 token、代码/数学/多语种覆盖、输入输出权重共享、
+        以及 embedding 层在并行训练中的放置。
+      </p>
+      <p>
+        DeepSeek-V3 技术报告和相关实现分析提到，其浅层结构包含 embedding layer，深层包含 output head；大规模流水并行中，
+        embedding 与 output head 的放置会影响通信和负载。对 Qwen、Llama、Gemma 等开放模型，也可以从 tokenizer 与
+        config 看到词表、特殊 token、embedding size、tie word embeddings 等设计。
+      </p>
+      <div class="note">
+        实践含义：tokenizer 是 embedding 技术的一部分。中文、代码、数学公式、表格、JSON、工具调用 schema 如果被切得很碎，
+        不仅增加上下文长度，还会影响早期 token embedding 的统计质量和后续 attention 成本。
+      </div>
+
+      <h2>5. 位置表示：RoPE 是当前主流，变体越来越重要</h2>
+      <p>
+        绝对位置 embedding 在早期 Transformer 中常见，但头部 LLM 普遍转向 RoPE 或其变体。RoPE 通过旋转 query/key
+        的子空间来注入相对位置信息，适合自回归 attention，也便于长上下文外推和缩放。
+      </p>
+      <div class="grid">
+        <div class="card">
+          <h3>RoPE</h3>
+          <span class="tag">文本顺序</span><span class="tag">相对位置</span>
+          <p>用于多数 decoder-only LLM。长上下文扩展通常围绕 RoPE base、scale、插值或再训练展开。</p>
+        </div>
+        <div class="card">
+          <h3>MRoPE</h3>
+          <span class="tag">二维空间</span><span class="tag">多分辨率</span>
+          <p>Qwen-VL 路线用多维/多分辨率 RoPE 编码图像 patch 的空间位置和视频帧结构。</p>
+        </div>
+        <div class="card">
+          <h3>TMRoPE</h3>
+          <span class="tag">音视频同步</span><span class="tag">时间戳</span>
+          <p>Qwen2.5-Omni 报告提出 Time-aligned Multimodal RoPE，用于对齐音频与视频输入时间。</p>
+        </div>
+      </div>
+      <p>
+        长上下文能力并不只是“把最大 token 数调大”。位置表示必须让模型在训练长度外仍能理解距离关系；同时 KV cache、
+        attention 复杂度、检索增强和上下文压缩都会成为瓶颈。因此 DeepSeek 的 MLA、Llama 的长上下文设计、Qwen2.5-1M
+        的长上下文训练，都应被视为表示系统的一部分。
+      </p>
+
+      <h2>6. DeepSeek 的关键点：MLA 是 Latent 表示压缩</h2>
+      <p>
+        DeepSeek-V3 最值得写进本调研的不是“有没有 embedding API”，而是 MLA 对注意力表示的重构。
+        标准 MHA/GQA 在推理时需要缓存每层每个 token 的 K/V；上下文越长，KV cache 越大。MLA 通过低秩投影把 K/V
+        压缩为更小的 latent vector，并把带 RoPE 的位置部分与内容部分解耦。
+      </p>
+      <p>
+        这个设计的本质是：不是所有注意力所需信息都必须以完整 K/V 张量形式缓存。内容匹配可进入压缩 latent 空间，
+        位置敏感部分则保留独立的 RoPE component。这样可以显著降低长上下文推理时的显存压力，也使头部模型的“内部表示”
+        从简单 hidden state 发展为多路、低秩、可缓存的表示结构。
+      </p>
+
+      <h2>7. 多模态 Embedding：从外接 Encoder 到统一 Token 序列</h2>
+      <p>
+        多模态大模型的 embedding 技术可以分成三代：
+      </p>
+      <ol>
+        <li><strong>外接 encoder + projector：</strong>图像由 CLIP/SigLIP/ViT 编成 patch embedding，经 projector 映射到 LLM hidden size，再插入文本序列。</li>
+        <li><strong>更紧密的 early fusion：</strong>文本 token 与视觉 token 在更早阶段进入统一 backbone，Meta 对 Llama 4 的描述属于这一方向。</li>
+        <li><strong>omni token 系统：</strong>文本、图像、音频、视频都被 token 化并进入同一自回归或统一建模框架，GPT-4o、Qwen-Omni、Gemini 系列体现这个趋势。</li>
+      </ol>
+      <p>
+        视觉 embedding 不只是把图片压成一个向量。文档理解、图表推理、GUI 操作和视频问答都要求模型保留 patch 级细节、
+        二维布局、分辨率、帧时间、OCR 文本位置和跨帧事件。Qwen2.5-VL 的动态分辨率与动态 FPS、Qwen2.5-Omni 的 TMRoPE、
+        Llama 4 的 early fusion，都在解决“不同模态如何进入同一个语义和位置空间”的问题。
+      </p>
+
+      <h2>8. 音频与视频：Embedding 进入时序建模</h2>
+      <p>
+        音频模型通常要把 waveform 转成声学 token、codec token 或 spectrogram-like 表示；视频则要把帧、patch、时间戳、
+        语音转写和画面事件对齐。GPT-4o 被描述为可接受文本、音频、图像、视频组合输入并生成多种输出，Qwen2.5-Omni
+        公开提出音视频交错组织和 TMRoPE。它们共同说明：头部模型的 embedding 技术正在从“静态 token 表”走向
+        “多模态时空 token 流”。
+      </p>
+      <p>
+        工程上，音视频 embedding 的难点不是单帧理解，而是 token budget。1 小时视频若按高 FPS 和高分辨率直接展开，
+        token 数不可接受。因此头部模型会结合动态采样、分辨率压缩、事件片段切分、音频转写、关键帧抽取和时间位置编码。
+      </p>
+
+      <h2>9. MoE Router 与专家表示</h2>
+      <p>
+        MoE 本身不是 embedding 层，但它改变了 hidden representation 的流动方式。DeepSeekMoE、Llama 4 MoE、Qwen3 MoE
+        等模型会用 router 根据 token hidden state 选择专家。也就是说，token embedding 经若干层后形成的表示不仅用于
+        预测下一个 token，也用于决定“交给哪些专家处理”。
+      </p>
+      <p>
+        这带来两个表示层面的变化：第一，模型容量被分散到专家子空间，不同 token/领域/语言可能激活不同路径；
+        第二，router 表示质量会影响负载均衡、专家专业化和推理稳定性。因此 MoE 头部模型通常配合负载均衡策略、
+        专家共享、auxiliary-loss-free balancing 或全局 batch balancing。
+      </p>
+
+      <h2>10. 检索 Embedding：外围能力，但与头部模型协同</h2>
+      <p>
+        专用 embedding 模型仍然重要，但它们通常属于 RAG 系统外围，而不是 GPT-4o/Claude/DeepSeek 这类生成模型的内部
+        embedding 层。常见组合是：用 Qwen3-Embedding、BGE-M3、Jina、Voyage、Cohere、OpenAI embedding 等模型召回文档，
+        再把检索结果交给 DeepSeek、Claude、Gemini、GPT、Qwen 或 Llama 生成答案。
+      </p>
+      <p>
+        头部生成模型和检索 embedding 的关系正在变深：强 LLM 可用于合成 query/document 训练数据、构造 hard negatives、
+        蒸馏 reranker 偏好、给 chunk 补全上下文；而检索 embedding 则为长上下文模型降低输入负担，减少无关 token。
+      </p>
+
+      <h2>11. 关键技术趋势</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>趋势</th>
+            <th>代表技术</th>
+            <th>为什么重要</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>位置编码从一维走向多维时空</td>
+            <td>RoPE、MRoPE、TMRoPE、长上下文 RoPE scaling</td>
+            <td>文本、图像、音频、视频需要共享序列，但位置语义完全不同。</td>
+          </tr>
+          <tr>
+            <td>多模态 token 早融合</td>
+            <td>Llama 4 early fusion、GPT-4o omni、Qwen-Omni</td>
+            <td>减少“视觉理解是外挂”的割裂，让跨模态推理发生在主干模型内部。</td>
+          </tr>
+          <tr>
+            <td>KV cache 表示压缩</td>
+            <td>DeepSeek MLA、低秩 K/V latent、RoPE 解耦</td>
+            <td>长上下文和高并发推理的核心成本在缓存，而不只在参数量。</td>
+          </tr>
+          <tr>
+            <td>表示驱动专家路由</td>
+            <td>DeepSeekMoE、Llama 4 MoE、Qwen MoE</td>
+            <td>hidden state 同时承担语义预测和计算路径选择。</td>
+          </tr>
+          <tr>
+            <td>检索向量与生成模型协同训练</td>
+            <td>LLM 合成数据、reranker 蒸馏、contextual retrieval</td>
+            <td>RAG 的质量来自检索表示与生成模型上下文理解的共同优化。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>12. 给工程团队的判断框架</h2>
+      <ol>
+        <li><strong>如果你问“模型内部怎么理解输入”：</strong>重点看 tokenizer、token embedding、RoPE/MRoPE、视觉/audio projector、early fusion、KV cache 表示。</li>
+        <li><strong>如果你问“RAG 怎么召回文档”：</strong>重点看专用 embedding 模型、chunk 策略、向量维度、reranker 和混合检索。</li>
+        <li><strong>如果你问“长上下文为什么贵”：</strong>重点看 attention 复杂度、KV cache、MLA/GQA/MQA、RoPE scaling 和上下文压缩。</li>
+        <li><strong>如果你问“多模态为什么难”：</strong>重点看不同模态 token 的粒度、位置系统、时间同步、projector 训练和 token budget。</li>
+      </ol>
+
+      <h2>13. 参考资料</h2>
+      <ol class="refs">
+        <li>OpenAI, “GPT-4 Technical Report”, arXiv:2303.08774. <a href="https://arxiv.org/abs/2303.08774">https://arxiv.org/abs/2303.08774</a></li>
+        <li>OpenAI, “GPT-4”. <a href="https://openai.com/index/gpt-4-research/">https://openai.com/index/gpt-4-research/</a></li>
+        <li>OpenAI, “GPT-4V(ision) technical work and authors”. <a href="https://openai.com/contributions/gpt-4v/">https://openai.com/contributions/gpt-4v/</a></li>
+        <li>OpenAI, “Hello GPT-4o”. <a href="https://openai.com/index/hello-gpt-4o/">https://openai.com/index/hello-gpt-4o/</a></li>
+        <li>OpenAI, “GPT-4o System Card”. <a href="https://cdn.openai.com/gpt-4o-system-card.pdf">https://cdn.openai.com/gpt-4o-system-card.pdf</a></li>
+        <li>OpenAI, “Addendum to GPT-4o System Card: Native image generation”. <a href="https://cdn.openai.com/11998be9-5319-4302-bfbf-1167e093f1fb/Native_Image_Generation_System_Card.pdf">https://cdn.openai.com/11998be9-5319-4302-bfbf-1167e093f1fb/Native_Image_Generation_System_Card.pdf</a></li>
+        <li>OpenAI, “Introducing GPT-4.1 in the API”. <a href="https://openai.com/index/gpt-4-1/">https://openai.com/index/gpt-4-1/</a></li>
+        <li>OpenAI, “GPT-5 System Card”. <a href="https://openai.com/index/gpt-5-system-card/">https://openai.com/index/gpt-5-system-card/</a></li>
+        <li>DeepSeek-AI, “DeepSeek-V3 Technical Report”, arXiv:2412.19437. <a href="https://arxiv.org/abs/2412.19437">https://arxiv.org/abs/2412.19437</a></li>
+        <li>DeepSeek-V3 implementation notes, “Multi-head Latent Attention (MLA)”. <a href="https://deepwiki.com/deepseek-ai/DeepSeek-V3/4.2-multi-head-latent-attention-%28mla%29">https://deepwiki.com/deepseek-ai/DeepSeek-V3/4.2-multi-head-latent-attention-%28mla%29</a></li>
+        <li>Meta AI, “The Llama 4 herd: The beginning of a new era of natively multimodal AI innovation”, 2025-04. <a href="https://ai.meta.com/blog/llama-4-multimodal-intelligence/">https://ai.meta.com/blog/llama-4-multimodal-intelligence/</a></li>
+        <li>Google DeepMind, “Gemini Embedding: Generalizable Embeddings from Gemini”, 2025-03. <a href="https://deepmind.google/research/publications/157741/">https://deepmind.google/research/publications/157741/</a></li>
+        <li>Qwen Team, “Qwen3 Technical Report”, arXiv:2505.09388. <a href="https://arxiv.org/abs/2505.09388">https://arxiv.org/abs/2505.09388</a></li>
+        <li>Qwen Team, “Qwen2.5-VL Technical Report”, arXiv:2502.13923. <a href="https://arxiv.org/abs/2502.13923">https://arxiv.org/abs/2502.13923</a></li>
+        <li>Qwen Team, “Qwen2.5-Omni Technical Report”, arXiv:2503.20215. <a href="https://arxiv.org/abs/2503.20215">https://arxiv.org/abs/2503.20215</a></li>
+        <li>Qwen Team, “Qwen2.5-1M Technical Report”, arXiv:2501.15383. <a href="https://arxiv.org/abs/2501.15383">https://arxiv.org/abs/2501.15383</a></li>
+        <li>Anthropic, “Introducing Claude 3.5 Sonnet”, 2024-06. <a href="https://www.anthropic.com/news/claude-3-5-sonnet">https://www.anthropic.com/news/claude-3-5-sonnet</a></li>
+        <li>Keras Hub, “Gemma3Backbone model”. <a href="https://keras.io/keras_hub/api/models/gemma3/gemma3_backbone/">https://keras.io/keras_hub/api/models/gemma3/gemma3_backbone/</a></li>
+        <li>Su et al., “RoFormer: Enhanced Transformer with Rotary Position Embedding”, arXiv:2104.09864. <a href="https://arxiv.org/abs/2104.09864">https://arxiv.org/abs/2104.09864</a></li>
+      </ol>
+    </article>
+  </main>
+</body>
+</html>
